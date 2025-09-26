@@ -31,6 +31,7 @@ import TripRequestScreen from './screens/driver-hire/TripRequestScreen';
 import DriverTripsScreen from './screens/driver-hire/DriverTripsScreen';
 import TripTrackingScreen from './screens/driver-hire/TripTrackingScreen';
 import DriverRegistrationScreen from './screens/driver-hire/DriverRegistrationScreen';
+import DriverMatchingScreen from './screens/driver-hire/DriverMatchingScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -109,6 +110,7 @@ export default function App() {
         <Stack.Screen name="TripRequest" component={TripRequestScreen} options={{ headerShown: false }} />
         <Stack.Screen name="DriverTrips" component={DriverTripsScreen} options={{ headerShown: false }} />
         <Stack.Screen name="TripTracking" component={TripTrackingScreen} options={{ headerShown: false }}/>
+        <Stack.Screen name="DriverMatching" component={DriverMatchingScreen} options={{ headerShown: false }} />
         <Stack.Screen name="DriverRegistration" component={DriverRegistrationScreen} ooptions={{ headerShown: false }} />
 
         {/* Role-Based Tab Navigators */}
