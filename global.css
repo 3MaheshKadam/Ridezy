@@ -1,0 +1,11 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+* {
+  font-family: './assets/fonts/Montserrat-Medium.ttf', sans-serif;
+}
+
+/* Override for specific elements if needed */
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Montserrat-Medium', sans-serif;
+}

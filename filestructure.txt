@@ -1,0 +1,60 @@
+|-- .expo
+    |-- devices.json
+    |-- README.md
+|-- .gitignore
+|-- android
+    |-- app
+        |-- proguard-rules.pro
+|-- app.json
+|-- App.jsx
+|-- assets
+    |-- adaptive-icon.png
+    |-- favicon.png
+    |-- fonts
+        |-- Montserrat-Medium.ttf
+        |-- Montserrat-Regular.ttf
+    |-- icon.png
+    |-- splash.png
+|-- babel.config.js
+|-- cesconfig.jsonc
+|-- components
+    |-- CustomText.js
+    |-- ModernButton.tsx
+    |-- ModernInput.tsx
+    |-- ui
+        |-- Alert.jsx
+        |-- Button.tsx
+        |-- Card.tsx
+        |-- Input.tsx
+|-- context
+    |-- UserContext.js
+|-- eas.json
+|-- eslint.config.js
+|-- global.css
+|-- lib
+    |-- utils.ts
+|-- metro.config.js
+|-- nativewind-env.d.ts
+|-- package-lock.json
+|-- package.json
+|-- prettier.config.js
+|-- public
+    |-- assets
+    |-- images
+        |-- pattern.png
+|-- screens
+    |-- BookingScreen.js
+    |-- CheckoutScreen.js
+    |-- LoginScreen.jsx
+    |-- MapTrackingScreen.js
+    |-- NotificationsScreen.js
+    |-- PartnerScreen.js
+    |-- PaymentConfirmationScreen.js
+    |-- ProfileScreen.js
+    |-- ServiceDetailsScreen.js
+    |-- ServicesListScreen.js
+    |-- SignUpScreen.jsx
+    |-- SubscriptionScreen.js
+    |-- VehicleScreen.js
+|-- tailwind.config.js
+|-- tsconfig.json
