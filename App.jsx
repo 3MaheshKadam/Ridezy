@@ -111,7 +111,7 @@ export default function App() {
         <Stack.Screen name="DriverTrips" component={DriverTripsScreen} options={{ headerShown: false }} />
         <Stack.Screen name="TripTracking" component={TripTrackingScreen} options={{ headerShown: false }}/>
         <Stack.Screen name="DriverMatching" component={DriverMatchingScreen} options={{ headerShown: false }} />
-        <Stack.Screen name="DriverRegistration" component={DriverRegistrationScreen} ooptions={{ headerShown: false }} />
+        <Stack.Screen name="DriverRegistration" component={DriverRegistrationScreen} options={{ headerShown: false }} />
 
         {/* Role-Based Tab Navigators */}
         <Stack.Screen name="CarOwnerTabs" component={CarOwnerTabs} options={{ headerShown: false }} />
