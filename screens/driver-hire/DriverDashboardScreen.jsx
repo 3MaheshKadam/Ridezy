@@ -94,13 +94,13 @@ const DriverDashboardScreen = ({ navigation }) => {
       onPress: () => Alert.alert('Earnings', 'Detailed earnings breakdown will be shown here'),
     },
     {
-      id: 'navigation',
-      title: 'Navigation',
-      subtitle: 'GPS & Routes',
-      icon: 'navigate',
+      id: 'find_trips',
+      title: 'Find Trips',
+      subtitle: 'View Request Feed',
+      icon: 'search',
       iconLibrary: 'Ionicons',
       color: '#3B82F6',
-      onPress: () => Alert.alert('Navigation', 'Navigation features will be implemented'),
+      onPress: () => navigation.navigate('DriverRequestFeed'),
     },
     {
       id: 'support',
@@ -240,15 +240,15 @@ const DriverDashboardScreen = ({ navigation }) => {
 
   const toggleOnlineStatus = () => {
     setIsOnline(!isOnline);
-    
+
     Alert.alert(
       isOnline ? 'Going Offline' : 'Going Online',
-      isOnline ? 
-        'You will stop receiving trip requests and current location tracking will be disabled.' : 
+      isOnline ?
+        'You will stop receiving trip requests and current location tracking will be disabled.' :
         'You will start receiving trip requests and location tracking will be enabled.',
       [
         { text: 'Cancel', style: 'cancel' },
-        { 
+        {
           text: isOnline ? 'Go Offline' : 'Go Online',
           onPress: () => {
             // TODO: Update driver status via API
@@ -279,7 +279,7 @@ const DriverDashboardScreen = ({ navigation }) => {
   return (
     <View className="flex-1 bg-gray-50">
       <StatusBar barStyle="dark-content" backgroundColor="#f9fafb" />
-      
+
       <ScrollView
         className="flex-1"
         showsVerticalScrollIndicator={false}
@@ -315,7 +315,7 @@ const DriverDashboardScreen = ({ navigation }) => {
                   </Text>
                 </View>
               </View>
-              
+
               <View className="items-center">
                 <TouchableOpacity
                   onPress={() => navigation.navigate('Notifications')}
@@ -329,7 +329,7 @@ const DriverDashboardScreen = ({ navigation }) => {
                     </View>
                   )}
                 </TouchableOpacity>
-                
+
                 <TouchableOpacity
                   onPress={handleEmergencySupport}
                   className="w-12 h-12 bg-red-100 rounded-2xl justify-center items-center shadow-sm shadow-black/5"
@@ -405,7 +405,7 @@ const DriverDashboardScreen = ({ navigation }) => {
                     </Text>
                   </View>
                 </View>
-                
+
                 <View className="items-end">
                   <View className="bg-green-100 px-3 py-1 rounded-full">
                     <Text className="text-green-600 text-sm font-semibold">
@@ -432,16 +432,14 @@ const DriverDashboardScreen = ({ navigation }) => {
                 <TouchableOpacity
                   key={period.id}
                   onPress={() => setSelectedPeriod(period.id)}
-                  className={`px-6 py-3 rounded-2xl ${
-                    selectedPeriod === period.id
+                  className={`px-6 py-3 rounded-2xl ${selectedPeriod === period.id
                       ? 'bg-accent'
                       : 'bg-white border border-gray-200'
-                  } shadow-sm shadow-black/5`}
+                    } shadow-sm shadow-black/5`}
                   activeOpacity={0.8}
                 >
-                  <Text className={`text-sm font-semibold ${
-                    selectedPeriod === period.id ? 'text-white' : 'text-secondary'
-                  }`}>
+                  <Text className={`text-sm font-semibold ${selectedPeriod === period.id ? 'text-white' : 'text-secondary'
+                    }`}>
                     {period.label}
                   </Text>
                 </TouchableOpacity>
@@ -461,7 +459,7 @@ const DriverDashboardScreen = ({ navigation }) => {
           <Text className="text-primary text-lg font-bold mb-4">
             Performance Overview
           </Text>
-          
+
           <View className="flex-row flex-wrap gap-3">
             {performanceMetrics.map((metric, index) => (
               <View
@@ -470,23 +468,21 @@ const DriverDashboardScreen = ({ navigation }) => {
                 style={{ width: (width - 60) / 2 }}
               >
                 <View className="flex-row items-center justify-between mb-2">
-                  <View 
+                  <View
                     className="w-8 h-8 rounded-full justify-center items-center"
                     style={{ backgroundColor: metric.color + '20' }}
                   >
                     <Ionicons name={metric.icon} size={16} color={metric.color} />
                   </View>
-                  <View className={`px-2 py-1 rounded-full ${
-                    metric.changeType === 'positive' ? 'bg-green-100' : 'bg-red-100'
-                  }`}>
-                    <Text className={`text-xs font-semibold ${
-                      metric.changeType === 'positive' ? 'text-green-600' : 'text-red-600'
+                  <View className={`px-2 py-1 rounded-full ${metric.changeType === 'positive' ? 'bg-green-100' : 'bg-red-100'
                     }`}>
+                    <Text className={`text-xs font-semibold ${metric.changeType === 'positive' ? 'text-green-600' : 'text-red-600'
+                      }`}>
                       {metric.change}
                     </Text>
                   </View>
                 </View>
-                
+
                 <Text className="text-primary text-xl font-bold mb-1">
                   {metric.value}
                 </Text>
@@ -509,7 +505,7 @@ const DriverDashboardScreen = ({ navigation }) => {
           <Text className="text-primary text-lg font-bold mb-4">
             Quick Actions
           </Text>
-          
+
           <View className="flex-row flex-wrap gap-3">
             {quickActions.map((action) => (
               <TouchableOpacity
@@ -519,7 +515,7 @@ const DriverDashboardScreen = ({ navigation }) => {
                 className="bg-white rounded-2xl p-4 shadow-sm shadow-black/5 border border-gray-100 items-center"
                 style={{ width: (width - 60) / 2 }}
               >
-                <View 
+                <View
                   className="w-12 h-12 rounded-2xl justify-center items-center mb-3"
                   style={{ backgroundColor: action.color + '20' }}
                 >
@@ -547,7 +543,7 @@ const DriverDashboardScreen = ({ navigation }) => {
           <Text className="text-primary text-lg font-bold mb-4">
             Performance Summary
           </Text>
-          
+
           <View className="bg-white rounded-2xl shadow-sm shadow-black/5 border border-gray-100 overflow-hidden">
             <View className="p-4 border-b border-gray-100">
               <View className="flex-row items-center justify-between">
@@ -557,7 +553,7 @@ const DriverDashboardScreen = ({ navigation }) => {
                 </Text>
               </View>
             </View>
-            
+
             <View className="p-4 border-b border-gray-100">
               <View className="flex-row items-center justify-between">
                 <Text className="text-secondary text-sm">Completion Rate</Text>
@@ -566,7 +562,7 @@ const DriverDashboardScreen = ({ navigation }) => {
                 </Text>
               </View>
             </View>
-            
+
             <View className="p-4 border-b border-gray-100">
               <View className="flex-row items-center justify-between">
                 <Text className="text-secondary text-sm">Cancellation Rate</Text>
@@ -575,7 +571,7 @@ const DriverDashboardScreen = ({ navigation }) => {
                 </Text>
               </View>
             </View>
-            
+
             <View className="p-4">
               <View className="flex-row items-center justify-between">
                 <Text className="text-secondary text-sm">Average Rating</Text>
@@ -602,7 +598,7 @@ const DriverDashboardScreen = ({ navigation }) => {
             <Text className="text-primary text-lg font-bold">
               Recent Activities
             </Text>
-            <TouchableOpacity 
+            <TouchableOpacity
               onPress={() => navigation.navigate('DriverTrips')}
               activeOpacity={0.7}
             >
@@ -611,26 +607,25 @@ const DriverDashboardScreen = ({ navigation }) => {
               </Text>
             </TouchableOpacity>
           </View>
-          
+
           <View className="bg-white rounded-2xl shadow-sm shadow-black/5 border border-gray-100 overflow-hidden">
             {recentActivities.map((activity, index) => (
               <View
                 key={activity.id}
-                className={`p-4 flex-row items-center ${
-                  index !== recentActivities.length - 1 ? 'border-b border-gray-100' : ''
-                }`}
+                className={`p-4 flex-row items-center ${index !== recentActivities.length - 1 ? 'border-b border-gray-100' : ''
+                  }`}
               >
-                <View 
+                <View
                   className="w-10 h-10 rounded-full justify-center items-center mr-3"
                   style={{ backgroundColor: activity.iconBg + '20' }}
                 >
-                  <Ionicons 
-                    name={activity.icon} 
-                    size={18} 
-                    color={activity.iconBg} 
+                  <Ionicons
+                    name={activity.icon}
+                    size={18}
+                    color={activity.iconBg}
                   />
                 </View>
-                
+
                 <View className="flex-1">
                   <Text className="text-primary text-base font-medium mb-1">
                     {activity.title}
@@ -639,7 +634,7 @@ const DriverDashboardScreen = ({ navigation }) => {
                     {activity.subtitle}
                   </Text>
                 </View>
-                
+
                 <Text className="text-secondary text-xs">
                   {activity.time}
                 </Text>

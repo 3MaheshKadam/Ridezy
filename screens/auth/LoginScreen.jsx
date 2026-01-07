@@ -68,18 +68,18 @@
 // //     }
 
 // //     setIsLoading(true);
-    
+
 // //     try {
 // //       // TODO: Implement actual login API call
 // //       // const response = await loginAPI(email, password);
-      
+
 // //       // Simulate API call
 // //       await new Promise(resolve => setTimeout(resolve, 2000));
-      
+
 // //       // For now, navigate to role selection
 // //       // In production, check user role from API response
 // //       navigation.replace('Home');
-      
+
 // //     } catch (error) {
 // //       Alert.alert('Login Failed', 'Invalid email or password. Please try again.');
 // //     } finally {
@@ -118,7 +118,7 @@
 // //       className="flex-1 bg-white"
 // //     >
 // //       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
-      
+
 // //       <ScrollView 
 // //         className="flex-1"
 // //         showsVerticalScrollIndicator={false}
@@ -140,11 +140,11 @@
 // //             >
 // //               <Ionicons name="chevron-back" size={20} color="#1A1B23" />
 // //             </TouchableOpacity>
-            
+
 // //             <View className="flex-1 items-center">
 // //               <Text className="text-primary text-lg font-semibold">Sign In</Text>
 // //             </View>
-            
+
 // //             <View className="w-10" />
 // //           </View>
 // //         </Animated.View>
@@ -432,20 +432,20 @@
 //     }
 
 //     setIsLoading(true);
-    
+
 //     try {
 //       // Simulate API call with static credentials
 //       await new Promise(resolve => setTimeout(resolve, 2000));
-      
+
 //       const staticPassword = 'sample@123';
-      
+
 //       if (password !== staticPassword) {
 //         throw new Error('Invalid password');
 //       }
-      
+
 //       let role = null;
 //       let navigateTo = null;
-      
+
 //       // Static role assignment based on email
 //       if (email === 'maheshkadam9298@gmail.com') {
 //         role = 'car_owner';
@@ -462,11 +462,11 @@
 //       } else {
 //         throw new Error('Invalid email');
 //       }
-      
+
 //       // In production, store role/token in state/context
 //       // For now, just navigate based on role
 //       navigation.replace(navigateTo);
-      
+
 //     } catch (error) {
 //       Alert.alert('Login Failed', 'Invalid email or password. Please try again.');
 //     } finally {
@@ -505,7 +505,7 @@
 //       className="flex-1 bg-white"
 //     >
 //       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
-      
+
 //       <ScrollView 
 //         className="flex-1"
 //         showsVerticalScrollIndicator={false}
@@ -527,11 +527,11 @@
 //             >
 //               <Ionicons name="chevron-back" size={20} color="#1A1B23" />
 //             </TouchableOpacity>
-            
+
 //             <View className="flex-1 items-center">
 //               <Text className="text-primary text-lg font-semibold">Sign In</Text>
 //             </View>
-            
+
 //             <View className="w-10" />
 //           </View>
 //         </Animated.View>
@@ -767,9 +767,14 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import '../../global.css';
 
+import { useUser } from '../../context/UserContext';
+import { post, get } from '../../lib/api';
+import { endpoints } from '../../config/apiConfig';
+import * as SecureStore from 'expo-secure-store';
 const { width, height } = Dimensions.get('window');
 
 const LoginScreen = ({ navigation }) => {
+  const { login } = useUser();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -819,43 +824,66 @@ const LoginScreen = ({ navigation }) => {
     }
 
     setIsLoading(true);
-    
+
     try {
-      // Simulate API call with static credentials
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      const staticPassword = 'sample@123';
-      
-      if (password !== staticPassword) {
-        throw new Error('Invalid password');
+      const response = await post(endpoints.auth.login, { email, password });
+
+      // Save token to SecureStore
+      if (response.token) {
+        await SecureStore.setItemAsync('userToken', response.token);
       }
-      
-      let role = null;
-      let navigateTo = null;
-      
-      // Static role assignment based on email
-      if (email === 'maheshkadam9298@gmail.com') {
-        role = 'car_owner';
-        navigateTo = 'Home'; // Dashboard for car owners
-      } else if (email === 'sameergaikwad422@gmail.com') {
-        role = 'car_wash_center';
-        navigateTo = 'CenterTabs'; // Navigates to CenterDashboardScreen as first tab
-      } else if (email === 'admin@gmail.com') {
-        role = 'admin';
-        navigateTo = 'AdminTabs'; // Navigates to AdminDashboardScreen as first tab (updated admin dashboard)
-      } else if (email === 'driver@gmail.com') {
-        role = 'driver';
-        navigateTo = 'DriverTabs'; // Navigates to DriverDashboardScreen as first tab
-      } else {
-        throw new Error('Invalid email');
+
+      console.log('Login Response:', JSON.stringify(response, null, 2));
+
+      let userData = response.user || response;
+
+      // Workaround: If name is missing, try fetching full profile
+      if (!userData.name && !userData.fullName) {
+        try {
+          const profileResponse = await get(endpoints.auth.me);
+          if (profileResponse) {
+            console.log('Profile Response:', JSON.stringify(profileResponse, null, 2));
+            userData = { ...userData, ...profileResponse, name: profileResponse.name || profileResponse.fullName || userData.name };
+          }
+        } catch (err) {
+          console.log('Failed to fetch profile:', err);
+        }
       }
-      
-      // In production, store role/token in state/context
-      // For now, just navigate based on role
+
+      // Store user data in context
+      login(userData);
+
+      const role = response.user?.role || response.role;
+      let navigateTo = 'Home';
+
+      // Role-based navigation
+      if (role === 'OWNER') {
+        // Check if onboarding is needed
+        if (response.user?.status === 'PENDING_ONBOARDING') {
+          navigateTo = 'CarOwnerRegistration';
+        } else {
+          navigateTo = 'Home';
+        }
+      } else if (role === 'CENTER') {
+        if (response.user?.status === 'PENDING_ONBOARDING') {
+          navigateTo = 'CarWashCenterRegistration';
+        } else {
+          navigateTo = 'CenterTabs';
+        }
+      } else if (role === 'ADMIN') {
+        navigateTo = 'AdminTabs';
+      } else if (role === 'DRIVER') {
+        if (response.user?.status === 'PENDING_ONBOARDING') {
+          navigateTo = 'DriverRegistration'; // Assuming route name is DriverRegistration
+        } else {
+          navigateTo = 'DriverTabs';
+        }
+      }
+
       navigation.replace(navigateTo);
-      
+
     } catch (error) {
-      Alert.alert('Login Failed', 'Invalid email or password. Please try again.');
+      Alert.alert('Login Failed', error.message || 'Invalid email or password. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -887,13 +915,13 @@ const LoginScreen = ({ navigation }) => {
   };
 
   return (
-    <KeyboardAvoidingView 
+    <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       className="flex-1 bg-white"
     >
       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
-      
-      <ScrollView 
+
+      <ScrollView
         className="flex-1"
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
@@ -914,18 +942,18 @@ const LoginScreen = ({ navigation }) => {
             >
               <Ionicons name="chevron-back" size={20} color="#1A1B23" />
             </TouchableOpacity>
-            
+
             <View className="flex-1 items-center">
               <Text className="text-primary text-lg font-semibold">Sign In</Text>
             </View>
-            
+
             <View className="w-10" />
           </View>
         </Animated.View>
 
         {/* Background Elements */}
         <View className="absolute inset-0 overflow-hidden pointer-events-none">
-          <View 
+          <View
             className="absolute bg-accent/5 rounded-full"
             style={{
               width: width * 0.4,
@@ -934,7 +962,7 @@ const LoginScreen = ({ navigation }) => {
               right: -width * 0.1,
             }}
           />
-          <View 
+          <View
             className="absolute bg-primary/5 rounded-full"
             style={{
               width: width * 0.3,
@@ -982,9 +1010,8 @@ const LoginScreen = ({ navigation }) => {
             <Text className="text-primary text-sm font-semibold mb-2">
               Email Address
             </Text>
-            <View className={`bg-gray-50 rounded-2xl border-2 ${
-              emailFocused ? 'border-accent bg-white' : 'border-gray-100'
-            }`}>
+            <View className={`bg-gray-50 rounded-2xl border-2 ${emailFocused ? 'border-accent bg-white' : 'border-gray-100'
+              }`}>
               <TextInput
                 value={email}
                 onChangeText={setEmail}
@@ -1005,9 +1032,8 @@ const LoginScreen = ({ navigation }) => {
             <Text className="text-primary text-sm font-semibold mb-2">
               Password
             </Text>
-            <View className={`bg-gray-50 rounded-2xl border-2 ${
-              passwordFocused ? 'border-accent bg-white' : 'border-gray-100'
-            } flex-row items-center`}>
+            <View className={`bg-gray-50 rounded-2xl border-2 ${passwordFocused ? 'border-accent bg-white' : 'border-gray-100'
+              } flex-row items-center`}>
               <TextInput
                 value={password}
                 onChangeText={setPassword}
@@ -1025,10 +1051,10 @@ const LoginScreen = ({ navigation }) => {
                 className="pr-4"
                 activeOpacity={0.7}
               >
-                <Ionicons 
-                  name={showPassword ? "eye-off" : "eye"} 
-                  size={20} 
-                  color="#6C757D" 
+                <Ionicons
+                  name={showPassword ? "eye-off" : "eye"}
+                  size={20}
+                  color="#6C757D"
                 />
               </TouchableOpacity>
             </View>

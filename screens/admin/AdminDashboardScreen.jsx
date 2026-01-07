@@ -20,6 +20,7 @@ const AdminDashboardScreen = ({ navigation }) => {
   const [dashboardData, setDashboardData] = useState({
     pendingCarWash: 8,
     pendingDrivers: 12,
+    pendingCarOwners: 5,
     activeSubscriptions: 156,
     totalRevenue: 245680,
     todayRevenue: 8450,
@@ -83,7 +84,7 @@ const AdminDashboardScreen = ({ navigation }) => {
       count: dashboardData.pendingCarWash,
       color: '#3B82F6',
       gradient: ['#3B82F6', '#2563EB'],
-      screen: 'CarWashApproval',
+      screen: 'CarWashApprovals',
     },
     {
       id: '2',
@@ -93,7 +94,17 @@ const AdminDashboardScreen = ({ navigation }) => {
       count: dashboardData.pendingDrivers,
       color: '#8B5CF6',
       gradient: ['#8B5CF6', '#7C3AED'],
-      screen: 'DriverApproval',
+      screen: 'DriverApprovals',
+    },
+    {
+      id: '5',
+      title: 'Car Owner Approvals',
+      icon: 'directions-car',
+      iconType: 'material',
+      count: dashboardData.pendingCarOwners,
+      color: '#F97316',
+      gradient: ['#F97316', '#EA580C'],
+      screen: 'CarOwnerApprovals',
     },
     {
       id: '3',
@@ -200,7 +211,7 @@ const AdminDashboardScreen = ({ navigation }) => {
   return (
     <View className="flex-1 bg-gray-50">
       <StatusBar barStyle="light-content" backgroundColor="#1A1B23" />
-      
+
       {/* Header */}
       <LinearGradient
         colors={['#1A1B23', '#2D2E3A']}
@@ -261,7 +272,7 @@ const AdminDashboardScreen = ({ navigation }) => {
           className="px-4 mt-6"
         >
           <Text className="text-primary text-lg font-bold mb-4">Quick Actions</Text>
-          
+
           <View className="flex-row flex-wrap justify-between">
             {quickActions.map((action, index) => (
               <TouchableOpacity
@@ -313,7 +324,7 @@ const AdminDashboardScreen = ({ navigation }) => {
           className="px-4 mt-4"
         >
           <Text className="text-primary text-lg font-bold mb-4">Platform Statistics</Text>
-          
+
           <View className="flex-row flex-wrap justify-between">
             {statsCards.map((stat) => (
               <View
@@ -328,14 +339,12 @@ const AdminDashboardScreen = ({ navigation }) => {
                     <Ionicons name={stat.icon} size={20} color={stat.color} />
                   </View>
                   <View
-                    className={`px-2 py-1 rounded-full ${
-                      stat.changeType === 'positive' ? 'bg-green-50' : 'bg-red-50'
-                    }`}
+                    className={`px-2 py-1 rounded-full ${stat.changeType === 'positive' ? 'bg-green-50' : 'bg-red-50'
+                      }`}
                   >
                     <Text
-                      className={`text-xs font-semibold ${
-                        stat.changeType === 'positive' ? 'text-green-600' : 'text-red-600'
-                      }`}
+                      className={`text-xs font-semibold ${stat.changeType === 'positive' ? 'text-green-600' : 'text-red-600'
+                        }`}
                     >
                       {stat.change}
                     </Text>

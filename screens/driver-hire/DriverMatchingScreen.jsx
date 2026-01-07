@@ -13,12 +13,14 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import '../../global.css';
+import { get } from '../../lib/api';
+import { endpoints } from '../../config/apiConfig';
 
 const { width, height } = Dimensions.get('window');
 
 const DriverMatchingScreen = ({ navigation, route }) => {
   const { tripDetails } = route.params || {};
-  
+
   const [matchingStage, setMatchingStage] = useState('searching'); // searching, drivers_found, driver_assigned
   const [selectedDriver, setSelectedDriver] = useState(null);
   const [showDriverModal, setShowDriverModal] = useState(false);
@@ -93,23 +95,49 @@ const DriverMatchingScreen = ({ navigation, route }) => {
 
   useEffect(() => {
     startAnimations();
-    simulateDriverMatching();
-  }, []);
 
-  useEffect(() => {
-    if (matchingStage === 'drivers_found' && timeLeft > 0) {
-      const timer = setTimeout(() => {
-        setTimeLeft(timeLeft - 1);
-      }, 1000);
-      
-      if (timeLeft === 1) {
-        // Auto-assign best driver when time runs out
-        autoAssignBestDriver();
-      }
-      
-      return () => clearTimeout(timer);
+    // Start polling if we have a trip ID
+    let pollInterval;
+    const tripId = route.params?.tripId;
+
+    if (tripId) {
+      pollInterval = setInterval(async () => {
+        try {
+          const response = await get(endpoints.trips.details(tripId));
+          const trip = response.trip;
+
+          if (trip && (trip.status === 'ACCEPTED' || trip.status === 'ASSIGNED') && trip.driver) {
+            clearInterval(pollInterval);
+            setMatchingStage('driver_assigned');
+            // Navigate to tracking after a brief delay
+            setTimeout(() => {
+              navigation.replace('TripTracking', {
+                tripId: tripId,
+                tripDetails: {
+                  ...tripDetails,
+                  assignedDriver: trip.driver,
+                  status: trip.status
+                }
+              });
+            }, 2000);
+          } else if (trip && trip.status === 'CANCELLED') {
+            clearInterval(pollInterval);
+            Alert.alert('Trip Cancelled', 'This trip has been cancelled.');
+            navigation.goBack();
+          }
+        } catch (error) {
+          console.log('Error polling trip status:', error);
+        }
+      }, 3000); // Poll every 3 seconds
+    } else {
+      // specific for simple "Find Driver" demo without backend
+      simulateDriverMatching();
     }
-  }, [timeLeft, matchingStage]);
+
+    return () => {
+      if (pollInterval) clearInterval(pollInterval);
+    };
+  }, []);
 
   const startAnimations = () => {
     Animated.parallel([
@@ -153,7 +181,7 @@ const DriverMatchingScreen = ({ navigation, route }) => {
   const openDriverModal = (driver) => {
     setSelectedDriver(driver);
     setShowDriverModal(true);
-    
+
     Animated.timing(modalSlideAnim, {
       toValue: 0,
       duration: 300,
@@ -172,55 +200,55 @@ const DriverMatchingScreen = ({ navigation, route }) => {
     });
   };
 
- const handleSelectDriver = async (driver) => {
-  setAssigningDriver(true);
-  
-  try {
-    // TODO: Implement driver assignment API call
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    setMatchingStage('driver_assigned');
-    
-    // Navigate to trip tracking after successful assignment
-    setTimeout(() => {
-      navigation.replace('TripTracking', {
-        tripDetails: {
-          ...tripDetails,
-          // Only pass serializable driver data (no functions)
-          assignedDriver: {
-            id: driver.id,
-            name: driver.name,
-            avatar: driver.avatar,
-            rating: driver.rating,
-            reviews: driver.reviews,
-            experience: driver.experience,
-            vehicleModel: driver.vehicleModel,
-            vehicleNumber: driver.vehicleNumber,
-            vehicleColor: driver.vehicleColor,
-            eta: driver.eta,
-            distance: driver.distance,
-            fare: driver.fare,
-            features: driver.features,
-            languages: driver.languages,
-            completedTrips: driver.completedTrips,
-            acceptanceRate: driver.acceptanceRate,
-            phone: '+91 98765 43210', // Add phone number for calling
+  const handleSelectDriver = async (driver) => {
+    setAssigningDriver(true);
+
+    try {
+      // TODO: Implement driver assignment API call
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      setMatchingStage('driver_assigned');
+
+      // Navigate to trip tracking after successful assignment
+      setTimeout(() => {
+        navigation.replace('TripTracking', {
+          tripDetails: {
+            ...tripDetails,
+            // Only pass serializable driver data (no functions)
+            assignedDriver: {
+              id: driver.id,
+              name: driver.name,
+              avatar: driver.avatar,
+              rating: driver.rating,
+              reviews: driver.reviews,
+              experience: driver.experience,
+              vehicleModel: driver.vehicleModel,
+              vehicleNumber: driver.vehicleNumber,
+              vehicleColor: driver.vehicleColor,
+              eta: driver.eta,
+              distance: driver.distance,
+              fare: driver.fare,
+              features: driver.features,
+              languages: driver.languages,
+              completedTrips: driver.completedTrips,
+              acceptanceRate: driver.acceptanceRate,
+              phone: '+91 98765 43210', // Add phone number for calling
+            }
           }
-        }
-      });
-    }, 1500);
-    
-  } catch (error) {
-    Alert.alert('Assignment Failed', 'Please try selecting another driver.');
-  } finally {
-    setAssigningDriver(false);
-    closeDriverModal();
-  }
-};
+        });
+      }, 1500);
+
+    } catch (error) {
+      Alert.alert('Assignment Failed', 'Please try selecting another driver.');
+    } finally {
+      setAssigningDriver(false);
+      closeDriverModal();
+    }
+  };
 
   const autoAssignBestDriver = () => {
     // Auto-assign the highest rated driver
-    const bestDriver = availableDrivers.reduce((best, current) => 
+    const bestDriver = availableDrivers.reduce((best, current) =>
       current.rating > best.rating ? current : best
     );
     handleSelectDriver(bestDriver);
@@ -232,8 +260,8 @@ const DriverMatchingScreen = ({ navigation, route }) => {
       'Are you sure you want to cancel your trip request?',
       [
         { text: 'No', style: 'cancel' },
-        { 
-          text: 'Yes, Cancel', 
+        {
+          text: 'Yes, Cancel',
           style: 'destructive',
           onPress: () => navigation.goBack()
         }
@@ -264,18 +292,18 @@ const DriverMatchingScreen = ({ navigation, route }) => {
           <Ionicons name="car" size={40} color="#00C851" />
         </View>
       </Animated.View>
-      
+
       <Text className="text-primary text-2xl font-bold text-center mb-4">
         Finding Drivers Nearby
       </Text>
       <Text className="text-secondary text-base text-center mb-8">
-        We're matching you with the best available drivers in your area
+        We have sent your request to drivers near you. Waiting for acceptance...
       </Text>
-      
+
       <View className="w-full bg-gray-200 h-2 rounded-full mb-4">
         <Animated.View className="h-2 bg-accent rounded-full" style={{ width: '60%' }} />
       </View>
-      
+
       <Text className="text-secondary text-sm text-center">
         This usually takes 10-30 seconds
       </Text>
@@ -296,7 +324,7 @@ const DriverMatchingScreen = ({ navigation, route }) => {
             </Text>
           </View>
         </View>
-        
+
         <Text className="text-secondary text-sm">
           Choose your preferred driver or we'll assign the best match automatically
         </Text>
@@ -325,9 +353,8 @@ const DriverMatchingScreen = ({ navigation, route }) => {
           <TouchableOpacity
             key={driver.id}
             onPress={() => openDriverModal(driver)}
-            className={`bg-white rounded-2xl p-4 mb-4 shadow-sm shadow-black/5 border-2 ${
-              index === 0 ? 'border-accent bg-accent/5' : 'border-gray-200'
-            }`}
+            className={`bg-white rounded-2xl p-4 mb-4 shadow-sm shadow-black/5 border-2 ${index === 0 ? 'border-accent bg-accent/5' : 'border-gray-200'
+              }`}
             activeOpacity={0.8}
           >
             {index === 0 && (
@@ -337,13 +364,13 @@ const DriverMatchingScreen = ({ navigation, route }) => {
                 </Text>
               </View>
             )}
-            
+
             <View className="flex-row items-center">
               {/* Driver Avatar */}
               <View className="w-16 h-16 bg-accent/10 rounded-2xl justify-center items-center mr-4">
                 <Text className="text-3xl">{driver.avatar}</Text>
               </View>
-              
+
               {/* Driver Info */}
               <View className="flex-1">
                 <View className="flex-row items-center justify-between mb-1">
@@ -354,7 +381,7 @@ const DriverMatchingScreen = ({ navigation, route }) => {
                     ₹{driver.fare}
                   </Text>
                 </View>
-                
+
                 <View className="flex-row items-center mb-2">
                   <View className="bg-yellow-50 px-2 py-1 rounded-full mr-2">
                     <View className="flex-row items-center">
@@ -368,7 +395,7 @@ const DriverMatchingScreen = ({ navigation, route }) => {
                     {driver.reviews} trips • {driver.experience}
                   </Text>
                 </View>
-                
+
                 <View className="flex-row items-center justify-between">
                   <Text className="text-secondary text-sm">
                     {driver.vehicleModel} • {driver.vehicleColor}
@@ -380,7 +407,7 @@ const DriverMatchingScreen = ({ navigation, route }) => {
                     </Text>
                   </View>
                 </View>
-                
+
                 {/* Features */}
                 <View className="flex-row mt-2">
                   {driver.features.slice(0, 3).map((feature, idx) => (
@@ -404,14 +431,14 @@ const DriverMatchingScreen = ({ navigation, route }) => {
       <View className="w-32 h-32 bg-green-100 rounded-full justify-center items-center mb-8">
         <Ionicons name="checkmark-circle" size={64} color="#00C851" />
       </View>
-      
+
       <Text className="text-primary text-2xl font-bold text-center mb-4">
         Driver Assigned!
       </Text>
       <Text className="text-secondary text-base text-center mb-8">
         Your driver is getting ready and will be with you shortly
       </Text>
-      
+
       <View className="w-full bg-gray-200 h-2 rounded-full">
         <View className="w-full h-2 bg-accent rounded-full" />
       </View>
@@ -421,7 +448,7 @@ const DriverMatchingScreen = ({ navigation, route }) => {
   return (
     <View className="flex-1 bg-gray-50">
       <StatusBar barStyle="dark-content" backgroundColor="#f9fafb" />
-      
+
       {/* Custom Header */}
       <Animated.View
         style={{
@@ -438,15 +465,15 @@ const DriverMatchingScreen = ({ navigation, route }) => {
           >
             <Ionicons name="close" size={20} color="#1A1B23" />
           </TouchableOpacity>
-          
+
           <View className="flex-1 items-center">
             <Text className="text-primary text-lg font-semibold">
-              {matchingStage === 'searching' ? 'Finding Driver' : 
-               matchingStage === 'drivers_found' ? 'Choose Driver' : 
-               'Driver Assigned'}
+              {matchingStage === 'searching' ? 'Finding Driver' :
+                matchingStage === 'drivers_found' ? 'Choose Driver' :
+                  'Driver Assigned'}
             </Text>
           </View>
-          
+
           <TouchableOpacity
             onPress={() => Alert.alert('Help', 'Need assistance with driver matching?')}
             className="w-10 h-10 bg-gray-100 rounded-2xl justify-center items-center"
@@ -636,7 +663,7 @@ const DriverMatchingScreen = ({ navigation, route }) => {
                       Cancel
                     </Text>
                   </TouchableOpacity>
-                  
+
                   <TouchableOpacity
                     onPress={() => handleSelectDriver(selectedDriver)}
                     disabled={assigningDriver}

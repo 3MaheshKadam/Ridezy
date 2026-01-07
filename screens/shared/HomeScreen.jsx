@@ -160,7 +160,7 @@ const HomeScreen = ({ navigation }) => {
   return (
     <View className="flex-1 bg-gray-50">
       <StatusBar barStyle="dark-content" backgroundColor="#f9fafb" />
-      
+
       <ScrollView
         className="flex-1"
         showsVerticalScrollIndicator={false}
@@ -196,7 +196,7 @@ const HomeScreen = ({ navigation }) => {
                   </Text>
                 </View>
               </View>
-              
+
               <TouchableOpacity
                 onPress={() => navigation.navigate('Notifications')}
                 className="w-12 h-12 bg-white rounded-2xl justify-center items-center shadow-sm shadow-black/5"
@@ -228,10 +228,10 @@ const HomeScreen = ({ navigation }) => {
                   <View className="flex-row items-center justify-between">
                     <View className="flex-row items-center">
                       <View className="w-10 h-10 bg-white/20 rounded-full justify-center items-center mr-3">
-                        <Ionicons 
-                          name={isDriverOnline ? "pause" : "play"} 
-                          size={18} 
-                          color="#ffffff" 
+                        <Ionicons
+                          name={isDriverOnline ? "pause" : "play"}
+                          size={18}
+                          color="#ffffff"
                         />
                       </View>
                       <View>

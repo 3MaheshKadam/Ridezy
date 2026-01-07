@@ -16,6 +16,10 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import '../../global.css';
 
+import { post } from '../../lib/api';
+import { endpoints } from '../../config/apiConfig';
+// import { useUser } from '../../context/UserContext'; 
+
 const { width, height } = Dimensions.get('window');
 
 const DriverRegistrationScreen = ({ navigation }) => {
@@ -34,13 +38,13 @@ const DriverRegistrationScreen = ({ navigation }) => {
     address: '',
     emergencyContact: '',
     emergencyPhone: '',
-    
+
     // Driving Experience
     licenseNumber: '',
     licenseExpiry: '',
     yearsExperience: '',
     previousWork: '',
-    
+
     // Vehicle Information
     vehicleType: '',
     vehicleMake: '',
@@ -48,7 +52,7 @@ const DriverRegistrationScreen = ({ navigation }) => {
     vehicleYear: '',
     vehicleNumber: '',
     vehicleColor: '',
-    
+
     // Bank Details
     bankName: '',
     accountNumber: '',
@@ -86,44 +90,44 @@ const DriverRegistrationScreen = ({ navigation }) => {
   ];
 
   const documentTypes = [
-    { 
-      id: 'drivingLicense', 
-      name: 'Driving License', 
+    {
+      id: 'drivingLicense',
+      name: 'Driving License',
       description: 'Valid driving license (front & back)',
       required: true,
       icon: 'card'
     },
-    { 
-      id: 'aadharCard', 
-      name: 'Aadhar Card', 
+    {
+      id: 'aadharCard',
+      name: 'Aadhar Card',
       description: 'Government issued ID proof',
       required: true,
       icon: 'id-card'
     },
-    { 
-      id: 'panCard', 
-      name: 'PAN Card', 
+    {
+      id: 'panCard',
+      name: 'PAN Card',
       description: 'Required for tax purposes',
       required: true,
       icon: 'card'
     },
-    { 
-      id: 'vehicleRC', 
-      name: 'Vehicle RC', 
+    {
+      id: 'vehicleRC',
+      name: 'Vehicle RC',
       description: 'Registration certificate of your vehicle',
       required: true,
       icon: 'document'
     },
-    { 
-      id: 'insurance', 
-      name: 'Vehicle Insurance', 
+    {
+      id: 'insurance',
+      name: 'Vehicle Insurance',
       description: 'Valid insurance certificate',
       required: true,
       icon: 'shield'
     },
-    { 
-      id: 'photo', 
-      name: 'Profile Photo', 
+    {
+      id: 'photo',
+      name: 'Profile Photo',
       description: 'Clear photo for profile verification',
       required: true,
       icon: 'camera'
@@ -160,13 +164,13 @@ const DriverRegistrationScreen = ({ navigation }) => {
   const validateStep = (step) => {
     switch (step) {
       case 1:
-        return formData.fullName && formData.email && formData.phone && 
-               formData.address && formData.emergencyContact && formData.emergencyPhone;
+        return formData.fullName && formData.email && formData.phone &&
+          formData.address && formData.emergencyContact && formData.emergencyPhone;
       case 2:
         return formData.licenseNumber && formData.licenseExpiry && formData.yearsExperience;
       case 3:
-        return formData.vehicleType && formData.vehicleMake && formData.vehicleModel && 
-               formData.vehicleYear && formData.vehicleNumber && formData.vehicleColor;
+        return formData.vehicleType && formData.vehicleMake && formData.vehicleModel &&
+          formData.vehicleYear && formData.vehicleNumber && formData.vehicleColor;
       case 4:
         return Object.values(documents).every(doc => doc.uploaded);
       case 5:
@@ -200,7 +204,7 @@ const DriverRegistrationScreen = ({ navigation }) => {
   const openDocumentModal = (docType) => {
     setSelectedDocType(docType);
     setShowDocumentModal(true);
-    
+
     Animated.timing(modalSlideAnim, {
       toValue: 0,
       duration: 300,
@@ -220,41 +224,53 @@ const DriverRegistrationScreen = ({ navigation }) => {
   };
 
   const handleDocumentUpload = (type, method) => {
-    // TODO: Implement actual document upload (camera/gallery)
+    // In a real app, use DocumentPicker or ImagePicker here.
+    // For MVP, we'll confirm the 'upload' and set a mock URL.
+    const mockUrl = `https://ridezy-uploads.example.com/${type}_${Date.now()}.png`;
+
     setDocuments(prev => ({
       ...prev,
       [type]: {
         uploaded: true,
         verified: false,
-        fileName: `${type}.jpg`,
-        uri: 'mock-uri',
+        fileName: `${type}_scan.jpg`,
+        uri: mockUrl,
       }
     }));
-    
+
     closeDocumentModal();
     Alert.alert('Success', 'Document uploaded successfully!');
   };
 
   const handleSubmit = async () => {
     setIsLoading(true);
-    
+
     try {
-      // TODO: Submit driver registration to API
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      
+      // Construct payload from state
+      const payload = {
+        ...formData,
+        documents: Object.keys(documents).reduce((acc, key) => {
+          acc[key] = documents[key].uri;
+          return acc;
+        }, {})
+      };
+
+      await post(endpoints.onboarding.driver, payload);
+
       Alert.alert(
         'Registration Submitted!',
         'Your driver registration has been submitted for verification. You will be notified once approved.',
         [
           {
             text: 'Continue',
-            onPress: () => navigation.replace('Home'),
+            onPress: () => navigation.replace('Login'), // Back to login to wait for approval
           },
         ]
       );
-      
+
     } catch (error) {
-      Alert.alert('Submission Failed', 'Please try again later.');
+      console.error("Driver Submit Error", error);
+      Alert.alert('Submission Failed', error.message || 'Please try again later.');
     } finally {
       setIsLoading(false);
     }
@@ -264,28 +280,25 @@ const DriverRegistrationScreen = ({ navigation }) => {
     <View className="flex-row justify-between items-center mb-8">
       {steps.map((step, index) => (
         <View key={step.id} className="items-center flex-1">
-          <View className={`w-10 h-10 rounded-full justify-center items-center ${
-            currentStep >= step.id ? 'bg-accent' : 'bg-gray-200'
-          }`}>
+          <View className={`w-10 h-10 rounded-full justify-center items-center ${currentStep >= step.id ? 'bg-accent' : 'bg-gray-200'
+            }`}>
             {currentStep > step.id ? (
               <Ionicons name="checkmark" size={20} color="#ffffff" />
             ) : (
-              <Ionicons 
-                name={step.icon} 
-                size={18} 
-                color={currentStep >= step.id ? '#ffffff' : '#6C757D'} 
+              <Ionicons
+                name={step.icon}
+                size={18}
+                color={currentStep >= step.id ? '#ffffff' : '#6C757D'}
               />
             )}
           </View>
-          <Text className={`text-xs mt-2 text-center ${
-            currentStep >= step.id ? 'text-accent font-semibold' : 'text-secondary'
-          }`}>
+          <Text className={`text-xs mt-2 text-center ${currentStep >= step.id ? 'text-accent font-semibold' : 'text-secondary'
+            }`}>
             {step.title}
           </Text>
           {index < steps.length - 1 && (
-            <View className={`absolute top-5 left-1/2 w-full h-0.5 ${
-              currentStep > step.id ? 'bg-accent' : 'bg-gray-200'
-            }`} />
+            <View className={`absolute top-5 left-1/2 w-full h-0.5 ${currentStep > step.id ? 'bg-accent' : 'bg-gray-200'
+              }`} />
           )}
         </View>
       ))}
@@ -297,7 +310,7 @@ const DriverRegistrationScreen = ({ navigation }) => {
       <Text className="text-primary text-lg font-bold mb-4">
         Personal Information
       </Text>
-      
+
       <View>
         <Text className="text-primary text-sm font-semibold mb-2">Full Name</Text>
         <TextInput
@@ -373,7 +386,7 @@ const DriverRegistrationScreen = ({ navigation }) => {
       <Text className="text-primary text-lg font-bold mb-4">
         Driving Experience
       </Text>
-      
+
       <View>
         <Text className="text-primary text-sm font-semibold mb-2">License Number</Text>
         <TextInput
@@ -426,7 +439,7 @@ const DriverRegistrationScreen = ({ navigation }) => {
       <Text className="text-primary text-lg font-bold mb-4">
         Vehicle Information
       </Text>
-      
+
       <View>
         <Text className="text-primary text-sm font-semibold mb-2">Vehicle Type</Text>
         <View className="flex-row flex-wrap gap-3">
@@ -434,15 +447,13 @@ const DriverRegistrationScreen = ({ navigation }) => {
             <TouchableOpacity
               key={type.id}
               onPress={() => handleInputChange('vehicleType', type.id)}
-              className={`flex-1 bg-white rounded-xl p-4 border-2 ${
-                formData.vehicleType === type.id ? 'border-accent bg-accent/5' : 'border-gray-200'
-              } min-w-[40%] items-center`}
+              className={`flex-1 bg-white rounded-xl p-4 border-2 ${formData.vehicleType === type.id ? 'border-accent bg-accent/5' : 'border-gray-200'
+                } min-w-[40%] items-center`}
               activeOpacity={0.8}
             >
               <Text className="text-2xl mb-2">{type.icon}</Text>
-              <Text className={`text-sm font-semibold ${
-                formData.vehicleType === type.id ? 'text-accent' : 'text-secondary'
-              }`}>
+              <Text className={`text-sm font-semibold ${formData.vehicleType === type.id ? 'text-accent' : 'text-secondary'
+                }`}>
                 {type.name}
               </Text>
             </TouchableOpacity>
@@ -460,7 +471,7 @@ const DriverRegistrationScreen = ({ navigation }) => {
             className="bg-gray-50 rounded-xl px-4 py-3 text-primary text-base border border-gray-200"
           />
         </View>
-        
+
         <View className="flex-1">
           <Text className="text-primary text-sm font-semibold mb-2">Model</Text>
           <TextInput
@@ -483,7 +494,7 @@ const DriverRegistrationScreen = ({ navigation }) => {
             keyboardType="numeric"
           />
         </View>
-        
+
         <View className="flex-1">
           <Text className="text-primary text-sm font-semibold mb-2">Color</Text>
           <TextInput
@@ -513,32 +524,30 @@ const DriverRegistrationScreen = ({ navigation }) => {
       <Text className="text-primary text-lg font-bold mb-4">
         Upload Documents
       </Text>
-      
+
       <Text className="text-secondary text-sm mb-4">
         Please upload clear photos of all required documents for verification.
       </Text>
-      
+
       {documentTypes.map((docType) => (
         <TouchableOpacity
           key={docType.id}
           onPress={() => openDocumentModal(docType.id)}
-          className={`bg-white rounded-xl p-4 border-2 ${
-            documents[docType.id].uploaded ? 'border-green-200 bg-green-50' : 'border-gray-200'
-          }`}
+          className={`bg-white rounded-xl p-4 border-2 ${documents[docType.id].uploaded ? 'border-green-200 bg-green-50' : 'border-gray-200'
+            }`}
           activeOpacity={0.8}
         >
           <View className="flex-row items-center justify-between">
             <View className="flex-row items-center flex-1">
-              <View className={`w-12 h-12 rounded-xl justify-center items-center mr-4 ${
-                documents[docType.id].uploaded ? 'bg-green-100' : 'bg-gray-100'
-              }`}>
-                <Ionicons 
-                  name={documents[docType.id].uploaded ? 'checkmark-circle' : docType.icon} 
-                  size={24} 
-                  color={documents[docType.id].uploaded ? '#22c55e' : '#6C757D'} 
+              <View className={`w-12 h-12 rounded-xl justify-center items-center mr-4 ${documents[docType.id].uploaded ? 'bg-green-100' : 'bg-gray-100'
+                }`}>
+                <Ionicons
+                  name={documents[docType.id].uploaded ? 'checkmark-circle' : docType.icon}
+                  size={24}
+                  color={documents[docType.id].uploaded ? '#22c55e' : '#6C757D'}
                 />
               </View>
-              
+
               <View className="flex-1">
                 <View className="flex-row items-center">
                   <Text className="text-primary text-base font-semibold">
@@ -558,11 +567,11 @@ const DriverRegistrationScreen = ({ navigation }) => {
                 )}
               </View>
             </View>
-            
-            <Ionicons 
-              name={documents[docType.id].uploaded ? 'checkmark-circle' : 'camera'} 
-              size={24} 
-              color={documents[docType.id].uploaded ? '#22c55e' : '#00C851'} 
+
+            <Ionicons
+              name={documents[docType.id].uploaded ? 'checkmark-circle' : 'camera'}
+              size={24}
+              color={documents[docType.id].uploaded ? '#22c55e' : '#00C851'}
             />
           </View>
         </TouchableOpacity>
@@ -575,11 +584,11 @@ const DriverRegistrationScreen = ({ navigation }) => {
       <Text className="text-primary text-lg font-bold mb-4">
         Bank Account Details
       </Text>
-      
+
       <Text className="text-secondary text-sm mb-4">
         Your earnings will be transferred to this account.
       </Text>
-      
+
       <View>
         <Text className="text-primary text-sm font-semibold mb-2">Bank Name</Text>
         <TextInput
@@ -654,7 +663,7 @@ const DriverRegistrationScreen = ({ navigation }) => {
   return (
     <View className="flex-1 bg-gray-50">
       <StatusBar barStyle="dark-content" backgroundColor="#f9fafb" />
-      
+
       {/* Custom Header */}
       <Animated.View
         style={{
@@ -671,14 +680,14 @@ const DriverRegistrationScreen = ({ navigation }) => {
           >
             <Ionicons name="chevron-back" size={20} color="#1A1B23" />
           </TouchableOpacity>
-          
+
           <View className="flex-1 items-center">
             <Text className="text-primary text-lg font-semibold">Become a Driver</Text>
             <Text className="text-secondary text-sm">
               Step {currentStep} of {steps.length}
             </Text>
           </View>
-          
+
           <View className="w-10" />
         </View>
       </Animated.View>
@@ -719,9 +728,8 @@ const DriverRegistrationScreen = ({ navigation }) => {
           onPress={handleNext}
           disabled={isLoading || !validateStep(currentStep)}
           activeOpacity={0.8}
-          className={`rounded-2xl overflow-hidden ${
-            !validateStep(currentStep) ? 'opacity-50' : ''
-          }`}
+          className={`rounded-2xl overflow-hidden ${!validateStep(currentStep) ? 'opacity-50' : ''
+            }`}
         >
           <LinearGradient
             colors={isLoading ? ['#cccccc', '#999999'] : ['#00C851', '#00A843']}
@@ -746,10 +754,10 @@ const DriverRegistrationScreen = ({ navigation }) => {
                   <Text className="text-white text-lg font-semibold mr-2">
                     {currentStep === 5 ? 'Submit Registration' : 'Continue'}
                   </Text>
-                  <Ionicons 
-                    name={currentStep === 5 ? "checkmark" : "arrow-forward"} 
-                    size={20} 
-                    color="#ffffff" 
+                  <Ionicons
+                    name={currentStep === 5 ? "checkmark" : "arrow-forward"}
+                    size={20}
+                    color="#ffffff"
                   />
                 </>
               )}
@@ -801,7 +809,7 @@ const DriverRegistrationScreen = ({ navigation }) => {
                   Take Photo
                 </Text>
               </TouchableOpacity>
-              
+
               <TouchableOpacity
                 onPress={() => handleDocumentUpload(selectedDocType, 'gallery')}
                 className="bg-primary/10 rounded-2xl p-4 flex-row items-center"

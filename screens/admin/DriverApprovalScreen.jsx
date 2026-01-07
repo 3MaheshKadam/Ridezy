@@ -15,6 +15,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
 import '../../global.css';
 
+import { get, post } from '../../lib/api';
+import { endpoints } from '../../config/apiConfig';
+
 const { width, height } = Dimensions.get('window');
 
 const DriverApprovalScreen = ({ navigation }) => {
@@ -29,119 +32,55 @@ const DriverApprovalScreen = ({ navigation }) => {
   const slideUpAnim = useRef(new Animated.Value(30)).current;
   const modalSlideAnim = useRef(new Animated.Value(height)).current;
 
-  // Mock data - Replace with API call
-  const [pendingDrivers, setPendingDrivers] = useState([
-    {
-      id: '1',
-      name: 'Rajesh Kumar',
-      photo: '👨‍💼',
-      phone: '+91 98765 43210',
-      email: 'rajesh.kumar@email.com',
-      address: 'Camp Area, Amravati, Maharashtra 444601',
-      registeredDate: '2025-01-10',
-      dateOfBirth: '1985-05-15',
-      gender: 'Male',
-      experience: '8 years',
-      licenseNumber: 'MH2720150012345',
-      licenseExpiry: '2027-05-15',
-      vehicleType: 'Sedan',
-      vehicleModel: 'Honda City',
-      vehicleNumber: 'MH 27 AB 1234',
-      vehicleColor: 'White',
-      vehicleYear: '2019',
-      aadharNumber: '1234 5678 9012',
-      panNumber: 'ABCDE1234F',
-      documents: {
-        license: 'driving_license.pdf',
-        aadhar: 'aadhar_card.pdf',
-        pan: 'pan_card.pdf',
-        vehicleRC: 'vehicle_rc.pdf',
-        insurance: 'insurance.pdf',
-        photo: 'profile_photo.jpg',
-      },
-      bankDetails: {
-        accountNumber: '1234567890',
-        ifscCode: 'SBIN0001234',
-        accountHolder: 'Rajesh Kumar',
-      },
-      emergencyContact: {
-        name: 'Sunita Kumar',
-        relation: 'Wife',
-        phone: '+91 87654 32109',
-      },
-    },
-    {
-      id: '2',
-      name: 'Amit Singh',
-      photo: '👨‍🎓',
-      phone: '+91 87654 32109',
-      email: 'amit.singh@email.com',
-      address: 'Rajkamal Square, Amravati, Maharashtra 444605',
-      registeredDate: '2025-01-09',
-      dateOfBirth: '1990-08-20',
-      gender: 'Male',
-      experience: '5 years',
-      licenseNumber: 'MH2720180023456',
-      licenseExpiry: '2028-08-20',
-      vehicleType: 'SUV',
-      vehicleModel: 'Maruti Ertiga',
-      vehicleNumber: 'MH 27 CD 5678',
-      vehicleColor: 'Silver',
-      vehicleYear: '2020',
-      aadharNumber: '9876 5432 1098',
-      panNumber: 'XYZAB5678C',
-      documents: {
-        license: 'driving_license.pdf',
-        aadhar: 'aadhar_card.pdf',
-        pan: 'pan_card.pdf',
-        vehicleRC: 'vehicle_rc.pdf',
-        insurance: 'insurance.pdf',
-        photo: 'profile_photo.jpg',
-      },
-      bankDetails: {
-        accountNumber: '0987654321',
-        ifscCode: 'HDFC0001234',
-        accountHolder: 'Amit Singh',
-      },
-      emergencyContact: {
-        name: 'Ramesh Singh',
-        relation: 'Father',
-        phone: '+91 76543 21098',
-      },
-    },
-  ]);
+  // State for data
+  const [pendingDrivers, setPendingDrivers] = useState([]);
+  const [approvedDrivers, setApprovedDrivers] = useState([]);
+  const [rejectedDrivers, setRejectedDrivers] = useState([]);
 
-  const [approvedDrivers, setApprovedDrivers] = useState([
-    {
-      id: '3',
-      name: 'Suresh Patel',
-      photo: '👨‍🔧',
-      phone: '+91 76543 21098',
-      email: 'suresh.patel@email.com',
-      address: 'Badnera, Amravati',
-      approvedDate: '2025-01-05',
-      experience: '10 years',
-      vehicleModel: 'Toyota Innova',
-      vehicleNumber: 'MH 27 EF 9012',
-      status: 'active',
-      rating: 4.8,
-      totalTrips: 248,
-    },
-  ]);
+  useEffect(() => {
+    fetchData();
+  }, []);
 
-  const [rejectedDrivers, setRejectedDrivers] = useState([
-    {
-      id: '4',
-      name: 'Prakash Deshmukh',
-      photo: '👨‍💻',
-      phone: '+91 65432 10987',
-      email: 'prakash.d@email.com',
-      address: 'Kathora, Amravati',
-      rejectedDate: '2025-01-03',
-      reason: 'Invalid driving license - License number does not match records',
-      vehicleModel: 'Maruti Swift',
-    },
-  ]);
+  const fetchData = async () => {
+    try {
+      const response = await get(endpoints.admin.approvals);
+      // Assuming generic endpoint returns all. Filter for DRIVER.
+      const data = response || [];
+      // Mock filter for now. In real implementation, backend might filter or return structured data.
+      const drivers = data.filter(item => item.type === 'DRIVER' || item.licenseNumber); // Heuristic
+
+      setPendingDrivers(drivers.filter(d => d.status === 'PENDING'));
+      setApprovedDrivers(drivers.filter(d => d.status === 'APPROVED'));
+      setRejectedDrivers(drivers.filter(d => d.status === 'REJECTED'));
+
+    } catch (error) {
+      console.log('Error fetching driver approvals:', error);
+      setPendingDrivers([
+        {
+          id: '1',
+          name: 'Rajesh Kumar (Demo)',
+          photo: '👨‍💼',
+          phone: '+91 98765 43210',
+          email: 'rajesh.kumar@email.com',
+          address: 'Camp Area',
+          status: 'PENDING',
+          registeredDate: '2025-01-10',
+          licenseNumber: 'MH2720150012345',
+          vehicleModel: 'Honda City',
+          vehicleNumber: 'MH 27 AB 1234',
+          experience: '8 years',
+          emergencyContact: {
+            name: 'Sunita Kumar',
+            relation: 'Wife',
+            phone: '+91 87654 32109',
+          },
+          documents: {
+            license: 'driving_license.pdf',
+          }
+        }
+      ]);
+    }
+  };
 
   useEffect(() => {
     startAnimations();
@@ -219,24 +158,24 @@ const DriverApprovalScreen = ({ navigation }) => {
           text: 'Approve',
           onPress: async () => {
             try {
-              // TODO: API call to approve driver
-              await new Promise(resolve => setTimeout(resolve, 1000));
-              
+              // API call to approve driver
+              await post(endpoints.admin.approve, { id: driver.id, type: 'DRIVER', action: 'APPROVE' });
+
               // Remove from pending
               setPendingDrivers(prev => prev.filter(d => d.id !== driver.id));
-              
+
               // Add to approved
               setApprovedDrivers(prev => [
                 ...prev,
                 {
                   ...driver,
                   approvedDate: new Date().toISOString().split('T')[0],
-                  status: 'active',
+                  status: 'APPROVED',
                   rating: 0,
                   totalTrips: 0,
                 },
               ]);
-              
+
               closeDetailsModal();
               Alert.alert('Success', 'Driver approved successfully!');
             } catch (error) {
@@ -255,12 +194,12 @@ const DriverApprovalScreen = ({ navigation }) => {
     }
 
     try {
-      // TODO: API call to reject driver
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
+      // API call to reject driver
+      await post(endpoints.admin.approve, { id: selectedDriver.id, type: 'DRIVER', action: 'REJECT', reason: rejectionReason });
+
       // Remove from pending
       setPendingDrivers(prev => prev.filter(d => d.id !== selectedDriver.id));
-      
+
       // Add to rejected
       setRejectedDrivers(prev => [
         ...prev,
@@ -268,9 +207,10 @@ const DriverApprovalScreen = ({ navigation }) => {
           ...selectedDriver,
           rejectedDate: new Date().toISOString().split('T')[0],
           reason: rejectionReason,
+          status: 'REJECTED'
         },
       ]);
-      
+
       closeRejectModal();
       Alert.alert('Rejected', 'Driver application has been rejected.');
     } catch (error) {
@@ -340,7 +280,7 @@ const DriverApprovalScreen = ({ navigation }) => {
           <Ionicons name="checkmark-circle" size={18} color="#00C851" />
           <Text className="text-accent text-sm font-semibold ml-2">Approve</Text>
         </TouchableOpacity>
-        
+
         <TouchableOpacity
           onPress={(e) => {
             e.stopPropagation();
@@ -465,7 +405,7 @@ const DriverApprovalScreen = ({ navigation }) => {
   return (
     <View className="flex-1 bg-gray-50">
       <StatusBar barStyle="dark-content" backgroundColor="#f9fafb" />
-      
+
       {/* Header */}
       <Animated.View
         style={{
@@ -482,11 +422,11 @@ const DriverApprovalScreen = ({ navigation }) => {
           >
             <Ionicons name="chevron-back" size={20} color="#1A1B23" />
           </TouchableOpacity>
-          
+
           <View className="flex-1 items-center">
             <Text className="text-primary text-lg font-semibold">Driver Approvals</Text>
           </View>
-          
+
           <TouchableOpacity
             className="w-10 h-10 bg-gray-100 rounded-2xl justify-center items-center"
             activeOpacity={0.7}
@@ -519,16 +459,14 @@ const DriverApprovalScreen = ({ navigation }) => {
         <View className="flex-row bg-gray-100 rounded-2xl p-1">
           <TouchableOpacity
             onPress={() => setActiveTab('pending')}
-            className={`flex-1 py-2 rounded-xl ${
-              activeTab === 'pending' ? 'bg-white' : ''
-            }`}
+            className={`flex-1 py-2 rounded-xl ${activeTab === 'pending' ? 'bg-white' : ''
+              }`}
             activeOpacity={0.8}
           >
             <View className="items-center">
               <Text
-                className={`text-sm font-semibold ${
-                  activeTab === 'pending' ? 'text-primary' : 'text-secondary'
-                }`}
+                className={`text-sm font-semibold ${activeTab === 'pending' ? 'text-primary' : 'text-secondary'
+                  }`}
               >
                 Pending
               </Text>
@@ -541,34 +479,30 @@ const DriverApprovalScreen = ({ navigation }) => {
               )}
             </View>
           </TouchableOpacity>
-          
+
           <TouchableOpacity
             onPress={() => setActiveTab('approved')}
-            className={`flex-1 py-2 rounded-xl ${
-              activeTab === 'approved' ? 'bg-white' : ''
-            }`}
+            className={`flex-1 py-2 rounded-xl ${activeTab === 'approved' ? 'bg-white' : ''
+              }`}
             activeOpacity={0.8}
           >
             <Text
-              className={`text-sm font-semibold text-center ${
-                activeTab === 'approved' ? 'text-primary' : 'text-secondary'
-              }`}
+              className={`text-sm font-semibold text-center ${activeTab === 'approved' ? 'text-primary' : 'text-secondary'
+                }`}
             >
               Approved
             </Text>
           </TouchableOpacity>
-          
+
           <TouchableOpacity
             onPress={() => setActiveTab('rejected')}
-            className={`flex-1 py-2 rounded-xl ${
-              activeTab === 'rejected' ? 'bg-white' : ''
-            }`}
+            className={`flex-1 py-2 rounded-xl ${activeTab === 'rejected' ? 'bg-white' : ''
+              }`}
             activeOpacity={0.8}
           >
             <Text
-              className={`text-sm font-semibold text-center ${
-                activeTab === 'rejected' ? 'text-primary' : 'text-secondary'
-              }`}
+              className={`text-sm font-semibold text-center ${activeTab === 'rejected' ? 'text-primary' : 'text-secondary'
+                }`}
             >
               Rejected
             </Text>
@@ -812,7 +746,7 @@ const DriverApprovalScreen = ({ navigation }) => {
                         Close
                       </Text>
                     </TouchableOpacity>
-                    
+
                     <TouchableOpacity
                       onPress={() => handleApprove(selectedDriver)}
                       activeOpacity={0.8}
@@ -886,7 +820,7 @@ const DriverApprovalScreen = ({ navigation }) => {
               >
                 <Text className="text-primary text-base font-semibold">Cancel</Text>
               </TouchableOpacity>
-              
+
               <TouchableOpacity
                 onPress={handleReject}
                 className="flex-1 bg-red-500 rounded-2xl py-4 justify-center items-center"

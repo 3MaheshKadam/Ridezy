@@ -16,6 +16,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import '../../global.css';
 
+import { post } from '../../lib/api';
+import { endpoints } from '../../config/apiConfig';
+
 const { width, height } = Dimensions.get('window');
 
 const RegisterScreen = ({ navigation }) => {
@@ -27,7 +30,7 @@ const RegisterScreen = ({ navigation }) => {
     confirmPassword: '',
     selectedRole: null,
   });
-  
+
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -150,27 +153,38 @@ const RegisterScreen = ({ navigation }) => {
     if (!validateForm()) return;
 
     setIsLoading(true);
-    
+
     try {
-      // TODO: Implement actual registration API call
-      // const response = await registerAPI(formData);
-      
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 2500));
-      
+      // Map UI role IDs to Backend Enums
+      const roleMapping = {
+        'carOwner': 'OWNER',
+        'driver': 'DRIVER',
+        'carWashCenter': 'CENTER'
+      };
+
+      const payload = {
+        fullName: formData.fullName,
+        email: formData.email,
+        phone: formData.phone,
+        password: formData.password,
+        role: roleMapping[formData.selectedRole]
+      };
+
+      await post(endpoints.auth.register, payload);
+
       Alert.alert(
         'Registration Successful!',
-        'Welcome to Ridezy! Please verify your email to get started.',
+        'Your account has been created. Please sign in.',
         [
           {
-            text: 'Continue',
+            text: 'Sign In',
             onPress: () => navigation.replace('Login'),
           },
         ]
       );
-      
+
     } catch (error) {
-      Alert.alert('Registration Failed', 'Something went wrong. Please try again.');
+      Alert.alert('Registration Failed', error.message || 'Something went wrong. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -196,13 +210,13 @@ const RegisterScreen = ({ navigation }) => {
   };
 
   return (
-    <KeyboardAvoidingView 
+    <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       className="flex-1 bg-white"
     >
       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
-      
-      <ScrollView 
+
+      <ScrollView
         className="flex-1"
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
@@ -223,18 +237,18 @@ const RegisterScreen = ({ navigation }) => {
             >
               <Ionicons name="chevron-back" size={20} color="#1A1B23" />
             </TouchableOpacity>
-            
+
             <View className="flex-1 items-center">
               <Text className="text-primary text-lg font-semibold">Create Account</Text>
             </View>
-            
+
             <View className="w-10" />
           </View>
         </Animated.View>
 
         {/* Background Elements */}
         <View className="absolute inset-0 overflow-hidden pointer-events-none">
-          <View 
+          <View
             className="absolute bg-accent/5 rounded-full"
             style={{
               width: width * 0.4,
@@ -243,7 +257,7 @@ const RegisterScreen = ({ navigation }) => {
               right: -width * 0.1,
             }}
           />
-          <View 
+          <View
             className="absolute bg-primary/5 rounded-full"
             style={{
               width: width * 0.3,
@@ -285,9 +299,8 @@ const RegisterScreen = ({ navigation }) => {
             <Text className="text-primary text-sm font-semibold mb-2">
               Full Name
             </Text>
-            <View className={`bg-gray-50 rounded-2xl border-2 ${
-              focusedField === 'fullName' ? 'border-accent bg-white' : 'border-gray-100'
-            }`}>
+            <View className={`bg-gray-50 rounded-2xl border-2 ${focusedField === 'fullName' ? 'border-accent bg-white' : 'border-gray-100'
+              }`}>
               <TextInput
                 value={formData.fullName}
                 onChangeText={(value) => handleInputChange('fullName', value)}
@@ -306,9 +319,8 @@ const RegisterScreen = ({ navigation }) => {
             <Text className="text-primary text-sm font-semibold mb-2">
               Email Address
             </Text>
-            <View className={`bg-gray-50 rounded-2xl border-2 ${
-              focusedField === 'email' ? 'border-accent bg-white' : 'border-gray-100'
-            }`}>
+            <View className={`bg-gray-50 rounded-2xl border-2 ${focusedField === 'email' ? 'border-accent bg-white' : 'border-gray-100'
+              }`}>
               <TextInput
                 value={formData.email}
                 onChangeText={(value) => handleInputChange('email', value)}
@@ -329,9 +341,8 @@ const RegisterScreen = ({ navigation }) => {
             <Text className="text-primary text-sm font-semibold mb-2">
               Phone Number
             </Text>
-            <View className={`bg-gray-50 rounded-2xl border-2 ${
-              focusedField === 'phone' ? 'border-accent bg-white' : 'border-gray-100'
-            }`}>
+            <View className={`bg-gray-50 rounded-2xl border-2 ${focusedField === 'phone' ? 'border-accent bg-white' : 'border-gray-100'
+              }`}>
               <TextInput
                 value={formData.phone}
                 onChangeText={(value) => handleInputChange('phone', value)}
@@ -350,9 +361,8 @@ const RegisterScreen = ({ navigation }) => {
             <Text className="text-primary text-sm font-semibold mb-2">
               Password
             </Text>
-            <View className={`bg-gray-50 rounded-2xl border-2 ${
-              focusedField === 'password' ? 'border-accent bg-white' : 'border-gray-100'
-            } flex-row items-center`}>
+            <View className={`bg-gray-50 rounded-2xl border-2 ${focusedField === 'password' ? 'border-accent bg-white' : 'border-gray-100'
+              } flex-row items-center`}>
               <TextInput
                 value={formData.password}
                 onChangeText={(value) => handleInputChange('password', value)}
@@ -370,10 +380,10 @@ const RegisterScreen = ({ navigation }) => {
                 className="pr-4"
                 activeOpacity={0.7}
               >
-                <Ionicons 
-                  name={showPassword ? "eye-off" : "eye"} 
-                  size={20} 
-                  color="#6C757D" 
+                <Ionicons
+                  name={showPassword ? "eye-off" : "eye"}
+                  size={20}
+                  color="#6C757D"
                 />
               </TouchableOpacity>
             </View>
@@ -384,9 +394,8 @@ const RegisterScreen = ({ navigation }) => {
             <Text className="text-primary text-sm font-semibold mb-2">
               Confirm Password
             </Text>
-            <View className={`bg-gray-50 rounded-2xl border-2 ${
-              focusedField === 'confirmPassword' ? 'border-accent bg-white' : 'border-gray-100'
-            } flex-row items-center`}>
+            <View className={`bg-gray-50 rounded-2xl border-2 ${focusedField === 'confirmPassword' ? 'border-accent bg-white' : 'border-gray-100'
+              } flex-row items-center`}>
               <TextInput
                 value={formData.confirmPassword}
                 onChangeText={(value) => handleInputChange('confirmPassword', value)}
@@ -404,10 +413,10 @@ const RegisterScreen = ({ navigation }) => {
                 className="pr-4"
                 activeOpacity={0.7}
               >
-                <Ionicons 
-                  name={showConfirmPassword ? "eye-off" : "eye"} 
-                  size={20} 
-                  color="#6C757D" 
+                <Ionicons
+                  name={showConfirmPassword ? "eye-off" : "eye"}
+                  size={20}
+                  color="#6C757D"
                 />
               </TouchableOpacity>
             </View>
@@ -424,18 +433,16 @@ const RegisterScreen = ({ navigation }) => {
                   key={role.id}
                   onPress={() => handleRoleSelect(role.id)}
                   activeOpacity={0.7}
-                  className={`bg-white rounded-2xl p-4 border-2 ${
-                    formData.selectedRole === role.id 
-                      ? 'border-accent bg-accent/5' 
+                  className={`bg-white rounded-2xl p-4 border-2 ${formData.selectedRole === role.id
+                      ? 'border-accent bg-accent/5'
                       : 'border-gray-200'
-                  } shadow-sm shadow-black/5`}
+                    } shadow-sm shadow-black/5`}
                 >
                   <View className="flex-row items-center">
-                    <View className={`w-12 h-12 rounded-2xl justify-center items-center mr-4 ${
-                      formData.selectedRole === role.id 
-                        ? 'bg-accent/20' 
+                    <View className={`w-12 h-12 rounded-2xl justify-center items-center mr-4 ${formData.selectedRole === role.id
+                        ? 'bg-accent/20'
                         : 'bg-gray-100'
-                    }`}>
+                      }`}>
                       {renderIcon(role)}
                     </View>
                     <View className="flex-1">
@@ -446,11 +453,10 @@ const RegisterScreen = ({ navigation }) => {
                         {role.subtitle}
                       </Text>
                     </View>
-                    <View className={`w-6 h-6 rounded-full border-2 ${
-                      formData.selectedRole === role.id 
-                        ? 'border-accent bg-accent' 
+                    <View className={`w-6 h-6 rounded-full border-2 ${formData.selectedRole === role.id
+                        ? 'border-accent bg-accent'
                         : 'border-gray-300'
-                    } justify-center items-center`}>
+                      } justify-center items-center`}>
                       {formData.selectedRole === role.id && (
                         <Ionicons name="checkmark" size={12} color="#ffffff" />
                       )}
@@ -467,9 +473,8 @@ const RegisterScreen = ({ navigation }) => {
             activeOpacity={0.7}
             className="flex-row items-start mb-6"
           >
-            <View className={`w-5 h-5 rounded-lg border-2 mr-3 mt-0.5 justify-center items-center ${
-              acceptedTerms ? 'border-accent bg-accent' : 'border-gray-300 bg-white'
-            }`}>
+            <View className={`w-5 h-5 rounded-lg border-2 mr-3 mt-0.5 justify-center items-center ${acceptedTerms ? 'border-accent bg-accent' : 'border-gray-300 bg-white'
+              }`}>
               {acceptedTerms && (
                 <Ionicons name="checkmark" size={12} color="#ffffff" />
               )}

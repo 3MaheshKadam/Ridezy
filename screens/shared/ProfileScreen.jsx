@@ -15,18 +15,20 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import '../../global.css';
+import { useUser } from '../../context/UserContext';
 
 const { width, height } = Dimensions.get('window');
 
 const ProfileScreen = ({ navigation }) => {
-  // Mock user data - replace with actual user context/AsyncStorage
+  const { user } = useUser();
+
   const [userProfile, setUserProfile] = useState({
-    name: 'Alex Johnson',
-    email: 'alex.johnson@example.com',
-    phone: '+91 98765 43210',
+    name: user?.name || 'Guest User',
+    email: user?.email || 'guest@example.com',
+    phone: user?.phone || '+91 00000 00000',
     avatar: '👨‍💼',
-    roles: ['carOwner'], // Can have multiple roles
-    primaryRole: 'carOwner',
+    roles: [user?.role?.toLowerCase() || 'carOwner'],
+    primaryRole: user?.role?.toLowerCase() || 'carOwner',
     rating: 4.8,
     totalTrips: 24,
     totalEarnings: 12500,
@@ -154,11 +156,11 @@ const ProfileScreen = ({ navigation }) => {
 
   const handleSaveProfile = async () => {
     setIsLoading(true);
-    
+
     try {
       // TODO: Update user profile via API
       await new Promise(resolve => setTimeout(resolve, 1000));
-      
+
       setEditMode(false);
       Alert.alert('Success', 'Profile updated successfully!');
     } catch (error) {
@@ -223,8 +225,8 @@ const ProfileScreen = ({ navigation }) => {
       'Are you sure you want to logout?',
       [
         { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Logout', 
+        {
+          text: 'Logout',
           style: 'destructive',
           onPress: () => {
             // TODO: Clear user session
@@ -241,8 +243,8 @@ const ProfileScreen = ({ navigation }) => {
       'This action cannot be undone. All your data will be permanently deleted.',
       [
         { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Delete Account', 
+        {
+          text: 'Delete Account',
           style: 'destructive',
           onPress: () => Alert.alert('Account Deletion', 'Account deletion process will be implemented')
         }
@@ -277,7 +279,7 @@ const ProfileScreen = ({ navigation }) => {
   return (
     <View className="flex-1 bg-gray-50">
       <StatusBar barStyle="dark-content" backgroundColor="#f9fafb" />
-      
+
       {/* Custom Header */}
       <Animated.View
         style={{
@@ -294,22 +296,21 @@ const ProfileScreen = ({ navigation }) => {
           >
             <Ionicons name="chevron-back" size={20} color="#1A1B23" />
           </TouchableOpacity>
-          
+
           <View className="flex-1 items-center">
             <Text className="text-primary text-lg font-semibold">Profile</Text>
           </View>
-          
+
           <TouchableOpacity
             onPress={() => setEditMode(!editMode)}
-            className={`w-10 h-10 rounded-2xl justify-center items-center ${
-              editMode ? 'bg-accent/10' : 'bg-gray-100'
-            }`}
+            className={`w-10 h-10 rounded-2xl justify-center items-center ${editMode ? 'bg-accent/10' : 'bg-gray-100'
+              }`}
             activeOpacity={0.7}
           >
-            <Ionicons 
-              name={editMode ? "checkmark" : "create"} 
-              size={20} 
-              color={editMode ? "#00C851" : "#1A1B23"} 
+            <Ionicons
+              name={editMode ? "checkmark" : "create"}
+              size={20}
+              color={editMode ? "#00C851" : "#1A1B23"}
             />
           </TouchableOpacity>
         </View>
@@ -326,13 +327,13 @@ const ProfileScreen = ({ navigation }) => {
         >
           <View className="items-center mb-6">
             {/* Avatar */}
-            <TouchableOpacity 
+            <TouchableOpacity
               className="w-24 h-24 bg-accent/10 rounded-3xl justify-center items-center mb-4"
               activeOpacity={0.8}
             >
               <Text className="text-5xl">{userProfile.avatar}</Text>
             </TouchableOpacity>
-            
+
             {/* Name */}
             {editMode ? (
               <TextInput
@@ -346,7 +347,7 @@ const ProfileScreen = ({ navigation }) => {
                 {userProfile.name}
               </Text>
             )}
-            
+
             {/* Role Display */}
             <View className="flex-row items-center mb-3">
               <View className="bg-accent/10 px-3 py-1 rounded-full">
@@ -354,7 +355,7 @@ const ProfileScreen = ({ navigation }) => {
                   {getRoleDisplayName(userProfile.primaryRole)}
                 </Text>
               </View>
-              
+
               {userProfile.roles.length > 1 && (
                 <TouchableOpacity
                   onPress={openRoleModal}
@@ -367,17 +368,16 @@ const ProfileScreen = ({ navigation }) => {
                 </TouchableOpacity>
               )}
             </View>
-            
+
             {/* Verification Status */}
             <View className="flex-row items-center">
-              <Ionicons 
-                name={userProfile.verified ? "checkmark-circle" : "time"} 
-                size={16} 
-                color={userProfile.verified ? "#00C851" : "#F59E0B"} 
+              <Ionicons
+                name={userProfile.verified ? "checkmark-circle" : "time"}
+                size={16}
+                color={userProfile.verified ? "#00C851" : "#F59E0B"}
               />
-              <Text className={`text-sm font-medium ml-1 ${
-                userProfile.verified ? 'text-green-600' : 'text-yellow-600'
-              }`}>
+              <Text className={`text-sm font-medium ml-1 ${userProfile.verified ? 'text-green-600' : 'text-yellow-600'
+                }`}>
                 {userProfile.verified ? 'Verified Account' : 'Verification Pending'}
               </Text>
             </View>
@@ -391,14 +391,14 @@ const ProfileScreen = ({ navigation }) => {
               </Text>
               <Text className="text-secondary text-sm">Rating</Text>
             </View>
-            
+
             <View className="items-center">
               <Text className="text-primary text-xl font-bold">
                 {userProfile.totalTrips}
               </Text>
               <Text className="text-secondary text-sm">Trips</Text>
             </View>
-            
+
             <View className="items-center">
               <Text className="text-primary text-xl font-bold">
                 {userProfile.memberSince}
@@ -419,7 +419,7 @@ const ProfileScreen = ({ navigation }) => {
           <Text className="text-primary text-lg font-bold mb-4">
             Contact Information
           </Text>
-          
+
           {/* Email */}
           <View className="mb-4">
             <Text className="text-secondary text-sm font-medium mb-2">
@@ -439,7 +439,7 @@ const ProfileScreen = ({ navigation }) => {
               </Text>
             )}
           </View>
-          
+
           {/* Phone */}
           <View>
             <Text className="text-secondary text-sm font-medium mb-2">
@@ -471,7 +471,7 @@ const ProfileScreen = ({ navigation }) => {
           <Text className="text-primary text-lg font-bold mb-4">
             Preferences
           </Text>
-          
+
           <View className="space-y-4">
             {/* Notifications */}
             <View className="flex-row items-center justify-between">
@@ -491,7 +491,7 @@ const ProfileScreen = ({ navigation }) => {
                 ios_backgroundColor="#f3f4f6"
               />
             </View>
-            
+
             {/* Location Tracking */}
             <View className="flex-row items-center justify-between">
               <View className="flex-1">
@@ -526,14 +526,13 @@ const ProfileScreen = ({ navigation }) => {
               key={item.id}
               onPress={item.onPress}
               activeOpacity={0.7}
-              className={`p-4 flex-row items-center ${
-                index !== getFilteredMenuItems().length - 1 ? 'border-b border-gray-100' : ''
-              }`}
+              className={`p-4 flex-row items-center ${index !== getFilteredMenuItems().length - 1 ? 'border-b border-gray-100' : ''
+                }`}
             >
               <View className="w-10 h-10 bg-gray-100 rounded-2xl justify-center items-center mr-4">
                 {renderIcon(item)}
               </View>
-              
+
               <View className="flex-1">
                 <Text className="text-primary text-base font-medium mb-1">
                   {item.title}
@@ -542,7 +541,7 @@ const ProfileScreen = ({ navigation }) => {
                   {item.subtitle}
                 </Text>
               </View>
-              
+
               <Ionicons name="chevron-forward" size={20} color="#6C757D" />
             </TouchableOpacity>
           ))}
@@ -603,7 +602,7 @@ const ProfileScreen = ({ navigation }) => {
               </Text>
             </View>
           </TouchableOpacity>
-          
+
           <TouchableOpacity
             onPress={handleDeleteAccount}
             className="bg-white rounded-2xl py-4 px-6 shadow-sm shadow-black/5 border border-red-200"
@@ -755,29 +754,26 @@ const ProfileScreen = ({ navigation }) => {
                       {docType.replace(/([A-Z])/g, ' $1').trim()}
                     </Text>
                     <View className="flex-row items-center">
-                      <Ionicons 
-                        name={status.verified ? "checkmark-circle" : status.uploaded ? "time" : "close-circle"} 
-                        size={16} 
-                        color={status.verified ? "#00C851" : status.uploaded ? "#F59E0B" : "#dc2626"} 
+                      <Ionicons
+                        name={status.verified ? "checkmark-circle" : status.uploaded ? "time" : "close-circle"}
+                        size={16}
+                        color={status.verified ? "#00C851" : status.uploaded ? "#F59E0B" : "#dc2626"}
                       />
-                      <Text className={`text-sm font-medium ml-2 ${
-                        status.verified ? 'text-green-600' : status.uploaded ? 'text-yellow-600' : 'text-red-600'
-                      }`}>
+                      <Text className={`text-sm font-medium ml-2 ${status.verified ? 'text-green-600' : status.uploaded ? 'text-yellow-600' : 'text-red-600'
+                        }`}>
                         {status.verified ? 'Verified' : status.uploaded ? 'Under Review' : 'Not Uploaded'}
                       </Text>
                     </View>
                   </View>
-                  
+
                   <TouchableOpacity
                     onPress={() => Alert.alert('Document Upload', `Upload ${docType} functionality will be implemented`)}
-                    className={`px-4 py-2 rounded-xl ${
-                      status.verified ? 'bg-green-100' : 'bg-accent/10'
-                    }`}
+                    className={`px-4 py-2 rounded-xl ${status.verified ? 'bg-green-100' : 'bg-accent/10'
+                      }`}
                     activeOpacity={0.8}
                   >
-                    <Text className={`text-sm font-semibold ${
-                      status.verified ? 'text-green-600' : 'text-accent'
-                    }`}>
+                    <Text className={`text-sm font-semibold ${status.verified ? 'text-green-600' : 'text-accent'
+                      }`}>
                       {status.verified ? 'View' : status.uploaded ? 'Update' : 'Upload'}
                     </Text>
                   </TouchableOpacity>

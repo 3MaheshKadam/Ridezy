@@ -121,14 +121,14 @@
 //     const vehicle = vehicleOptions.find(v => v.id === selectedVehicle);
 //     const basePrice = mockDistance * vehicle.pricePerKm;
 //     const multiplier = tripType === 'roundtrip' ? 1.8 : 1;
-    
+
 //     setEstimatedPrice(Math.round(basePrice * multiplier));
 //   };
 
 //   const openLocationModal = (type) => {
 //     setLocationInputType(type);
 //     setShowLocationModal(true);
-    
+
 //     Animated.timing(modalSlideAnim, {
 //       toValue: 0,
 //       duration: 300,
@@ -173,11 +173,11 @@
 //     }
 
 //     setSearchingDrivers(true);
-    
+
 //     try {
 //       // TODO: Implement driver matching API
 //       await new Promise(resolve => setTimeout(resolve, 3000));
-      
+
 //       // Navigate to trip tracking or driver matching screen
 //       navigation.navigate('TripTracking', {
 //         tripDetails: {
@@ -191,7 +191,7 @@
 //           instructions: specialInstructions,
 //         }
 //       });
-      
+
 //     } catch (error) {
 //       Alert.alert('No Drivers Available', 'Please try again in a few minutes.');
 //     } finally {
@@ -203,7 +203,7 @@
 //     const today = new Date();
 //     const tomorrow = new Date(today);
 //     tomorrow.setDate(today.getDate() + 1);
-    
+
 //     if (date.toDateString() === today.toDateString()) return 'Today';
 //     if (date.toDateString() === tomorrow.toDateString()) return 'Tomorrow';
 //     return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
@@ -222,7 +222,7 @@
 //   return (
 //     <View className="flex-1 bg-gray-50">
 //       <StatusBar barStyle="dark-content" backgroundColor="#f9fafb" />
-      
+
 //       {/* Custom Header */}
 //       <Animated.View
 //         style={{
@@ -239,11 +239,11 @@
 //           >
 //             <Ionicons name="chevron-back" size={20} color="#1A1B23" />
 //           </TouchableOpacity>
-          
+
 //           <View className="flex-1 items-center">
 //             <Text className="text-primary text-lg font-semibold">Hire Driver</Text>
 //           </View>
-          
+
 //           <TouchableOpacity
 //             className="w-10 h-10 bg-gray-100 rounded-2xl justify-center items-center"
 //             activeOpacity={0.7}
@@ -265,7 +265,7 @@
 //           <Text className="text-primary text-lg font-bold mb-4">
 //             Where to?
 //           </Text>
-          
+
 //           {/* Pickup Location */}
 //           <TouchableOpacity
 //             onPress={() => openLocationModal('pickup')}
@@ -329,7 +329,7 @@
 //           <Text className="text-primary text-lg font-bold mb-4">
 //             Trip Type
 //           </Text>
-          
+
 //           <View className="flex-row space-x-4">
 //             <TouchableOpacity
 //               onPress={() => setTripType('oneway')}
@@ -351,7 +351,7 @@
 //                 </Text>
 //               </View>
 //             </TouchableOpacity>
-            
+
 //             <TouchableOpacity
 //               onPress={() => setTripType('roundtrip')}
 //               className={`flex-1 bg-white rounded-2xl p-4 border-2 ${
@@ -386,7 +386,7 @@
 //           <Text className="text-primary text-lg font-bold mb-4">
 //             Choose Vehicle
 //           </Text>
-          
+
 //           <View className="space-y-3">
 //             {vehicleOptions.map((vehicle) => (
 //               <TouchableOpacity
@@ -406,7 +406,7 @@
 //                     </Text>
 //                   </View>
 //                 )}
-                
+
 //                 <View className="flex-row items-center justify-between">
 //                   <View className="flex-row items-center flex-1">
 //                     <Text className="text-3xl mr-4">{vehicle.icon}</Text>
@@ -428,7 +428,7 @@
 //                       </View>
 //                     </View>
 //                   </View>
-                  
+
 //                   <View className={`w-6 h-6 rounded-full border-2 ${
 //                     selectedVehicle === vehicle.id 
 //                       ? 'border-accent bg-accent' 
@@ -455,7 +455,7 @@
 //           <Text className="text-primary text-lg font-bold mb-4">
 //             Select Date
 //           </Text>
-          
+
 //           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
 //             <View className="flex-row space-x-3">
 //               {getNext7Days().map((date, index) => (
@@ -492,7 +492,7 @@
 //           <Text className="text-primary text-lg font-bold mb-4">
 //             Select Time
 //           </Text>
-          
+
 //           <View className="flex-row flex-wrap gap-3">
 //             {timeSlots.map((time) => (
 //               <TouchableOpacity
@@ -526,7 +526,7 @@
 //           <Text className="text-primary text-lg font-bold mb-4">
 //             Number of Passengers
 //           </Text>
-          
+
 //           <View className="bg-white rounded-2xl p-4 shadow-sm shadow-black/5 border border-gray-100">
 //             <View className="flex-row items-center justify-between">
 //               <View className="flex-row items-center">
@@ -535,7 +535,7 @@
 //                   Passengers
 //                 </Text>
 //               </View>
-              
+
 //               <View className="flex-row items-center">
 //                 <TouchableOpacity
 //                   onPress={() => setPassengerCount(Math.max(1, passengerCount - 1))}
@@ -544,11 +544,11 @@
 //                 >
 //                   <Ionicons name="remove" size={16} color="#1A1B23" />
 //                 </TouchableOpacity>
-                
+
 //                 <Text className="text-primary text-lg font-semibold mx-4">
 //                   {passengerCount}
 //                 </Text>
-                
+
 //                 <TouchableOpacity
 //                   onPress={() => setPassengerCount(Math.min(7, passengerCount + 1))}
 //                   className="w-8 h-8 bg-accent/10 rounded-full justify-center items-center"
@@ -572,7 +572,7 @@
 //           <Text className="text-primary text-lg font-bold mb-4">
 //             Special Instructions (Optional)
 //           </Text>
-          
+
 //           <View className="bg-white rounded-2xl p-4 shadow-sm shadow-black/5 border border-gray-100">
 //             <TextInput
 //               value={specialInstructions}
@@ -614,7 +614,7 @@
 //               )}
 //             </View>
 //           </View>
-          
+
 //           <TouchableOpacity
 //             onPress={handleFindDriver}
 //             disabled={searchingDrivers}
@@ -691,7 +691,7 @@
 //             <Text className="text-primary text-base font-semibold mb-4">
 //               Popular Destinations
 //             </Text>
-            
+
 //             <ScrollView showsVerticalScrollIndicator={false}>
 //               {popularLocations.map((location) => (
 //                 <TouchableOpacity
@@ -739,6 +739,8 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import '../../global.css';
+import { post } from '../../lib/api';
+import { endpoints } from '../../config/apiConfig';
 
 const { width, height } = Dimensions.get('window');
 
@@ -846,14 +848,14 @@ const TripRequestScreen = ({ navigation }) => {
     const vehicle = vehicleOptions.find(v => v.id === selectedVehicle);
     const basePrice = mockDistance * vehicle.pricePerKm;
     const multiplier = tripType === 'roundtrip' ? 1.8 : 1;
-    
+
     setEstimatedPrice(Math.round(basePrice * multiplier));
   };
 
   const openLocationModal = (type) => {
     setLocationInputType(type);
     setShowLocationModal(true);
-    
+
     Animated.timing(modalSlideAnim, {
       toValue: 0,
       duration: 300,
@@ -898,27 +900,30 @@ const TripRequestScreen = ({ navigation }) => {
     }
 
     setSearchingDrivers(true);
-    
+
     try {
-      // TODO: Implement driver matching API
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      
-      // Navigate to driver matching screen
+      const tripData = {
+        pickupLocation,
+        dropoffLocation,
+        date: selectedDate.toISOString(),
+        time: selectedTime,
+        vehicleType: selectedVehicle,
+        tripType,
+        passengers: passengerCount,
+        specialInstructions,
+        estimatedPrice
+      };
+
+      const response = await post(endpoints.trips.create, tripData);
+
+      // Navigate to driver matching screen with trip ID
       navigation.navigate('DriverMatching', {
-        tripDetails: {
-          pickup: pickupLocation,
-          dropoff: dropoffLocation,
-          date: selectedDate,
-          time: selectedTime,
-          vehicle: selectedVehicle,
-          price: estimatedPrice,
-          passengers: passengerCount,
-          instructions: specialInstructions,
-        }
+        tripId: response.trip.id,
+        tripDetails: tripData
       });
-      
+
     } catch (error) {
-      Alert.alert('Error', 'Please try again in a few minutes.');
+      Alert.alert('Error', 'Failed to post trip request. Please try again.');
     } finally {
       setSearchingDrivers(false);
     }
@@ -928,7 +933,7 @@ const TripRequestScreen = ({ navigation }) => {
     const today = new Date();
     const tomorrow = new Date(today);
     tomorrow.setDate(today.getDate() + 1);
-    
+
     if (date.toDateString() === today.toDateString()) return 'Today';
     if (date.toDateString() === tomorrow.toDateString()) return 'Tomorrow';
     return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
@@ -947,7 +952,7 @@ const TripRequestScreen = ({ navigation }) => {
   return (
     <View className="flex-1 bg-gray-50">
       <StatusBar barStyle="dark-content" backgroundColor="#f9fafb" />
-      
+
       {/* Custom Header */}
       <Animated.View
         style={{
@@ -964,11 +969,11 @@ const TripRequestScreen = ({ navigation }) => {
           >
             <Ionicons name="chevron-back" size={20} color="#1A1B23" />
           </TouchableOpacity>
-          
+
           <View className="flex-1 items-center">
             <Text className="text-primary text-lg font-semibold">Hire Driver</Text>
           </View>
-          
+
           <TouchableOpacity
             className="w-10 h-10 bg-gray-100 rounded-2xl justify-center items-center"
             activeOpacity={0.7}
@@ -990,7 +995,7 @@ const TripRequestScreen = ({ navigation }) => {
           <Text className="text-primary text-lg font-bold mb-4">
             Where to?
           </Text>
-          
+
           {/* Pickup Location */}
           <TouchableOpacity
             onPress={() => openLocationModal('pickup')}
@@ -1054,45 +1059,41 @@ const TripRequestScreen = ({ navigation }) => {
           <Text className="text-primary text-lg font-bold mb-4">
             Trip Type
           </Text>
-          
+
           <View className="flex-row space-x-4">
             <TouchableOpacity
               onPress={() => setTripType('oneway')}
-              className={`flex-1 bg-white rounded-2xl p-4 border-2 ${
-                tripType === 'oneway' ? 'border-accent bg-accent/5' : 'border-gray-200'
-              } shadow-sm shadow-black/5`}
+              className={`flex-1 bg-white rounded-2xl p-4 border-2 ${tripType === 'oneway' ? 'border-accent bg-accent/5' : 'border-gray-200'
+                } shadow-sm shadow-black/5`}
               activeOpacity={0.8}
             >
               <View className="items-center">
-                <Ionicons 
-                  name="arrow-forward" 
-                  size={24} 
-                  color={tripType === 'oneway' ? '#00C851' : '#6C757D'} 
+                <Ionicons
+                  name="arrow-forward"
+                  size={24}
+                  color={tripType === 'oneway' ? '#00C851' : '#6C757D'}
                 />
-                <Text className={`text-sm font-semibold mt-2 ${
-                  tripType === 'oneway' ? 'text-accent' : 'text-secondary'
-                }`}>
+                <Text className={`text-sm font-semibold mt-2 ${tripType === 'oneway' ? 'text-accent' : 'text-secondary'
+                  }`}>
                   One Way
                 </Text>
               </View>
             </TouchableOpacity>
-            
+
             <TouchableOpacity
               onPress={() => setTripType('roundtrip')}
-              className={`flex-1 bg-white rounded-2xl p-4 border-2 ${
-                tripType === 'roundtrip' ? 'border-accent bg-accent/5' : 'border-gray-200'
-              } shadow-sm shadow-black/5`}
+              className={`flex-1 bg-white rounded-2xl p-4 border-2 ${tripType === 'roundtrip' ? 'border-accent bg-accent/5' : 'border-gray-200'
+                } shadow-sm shadow-black/5`}
               activeOpacity={0.8}
             >
               <View className="items-center">
-                <MaterialIcons 
-                  name="compare-arrows" 
-                  size={24} 
-                  color={tripType === 'roundtrip' ? '#00C851' : '#6C757D'} 
+                <MaterialIcons
+                  name="compare-arrows"
+                  size={24}
+                  color={tripType === 'roundtrip' ? '#00C851' : '#6C757D'}
                 />
-                <Text className={`text-sm font-semibold mt-2 ${
-                  tripType === 'roundtrip' ? 'text-accent' : 'text-secondary'
-                }`}>
+                <Text className={`text-sm font-semibold mt-2 ${tripType === 'roundtrip' ? 'text-accent' : 'text-secondary'
+                  }`}>
                   Round Trip
                 </Text>
               </View>
@@ -1111,17 +1112,16 @@ const TripRequestScreen = ({ navigation }) => {
           <Text className="text-primary text-lg font-bold mb-4">
             Choose Vehicle
           </Text>
-          
+
           <View className="space-y-3">
             {vehicleOptions.map((vehicle) => (
               <TouchableOpacity
                 key={vehicle.id}
                 onPress={() => setSelectedVehicle(vehicle.id)}
-                className={`bg-white rounded-2xl p-4 border-2 ${
-                  selectedVehicle === vehicle.id 
-                    ? 'border-accent bg-accent/5' 
+                className={`bg-white rounded-2xl p-4 border-2 ${selectedVehicle === vehicle.id
+                    ? 'border-accent bg-accent/5'
                     : 'border-gray-200'
-                } shadow-sm shadow-black/5 relative`}
+                  } shadow-sm shadow-black/5 relative`}
                 activeOpacity={0.8}
               >
                 {vehicle.popular && (
@@ -1131,7 +1131,7 @@ const TripRequestScreen = ({ navigation }) => {
                     </Text>
                   </View>
                 )}
-                
+
                 <View className="flex-row items-center justify-between">
                   <View className="flex-row items-center flex-1">
                     <Text className="text-3xl mr-4">{vehicle.icon}</Text>
@@ -1153,12 +1153,11 @@ const TripRequestScreen = ({ navigation }) => {
                       </View>
                     </View>
                   </View>
-                  
-                  <View className={`w-6 h-6 rounded-full border-2 ${
-                    selectedVehicle === vehicle.id 
-                      ? 'border-accent bg-accent' 
+
+                  <View className={`w-6 h-6 rounded-full border-2 ${selectedVehicle === vehicle.id
+                      ? 'border-accent bg-accent'
                       : 'border-gray-300'
-                  } justify-center items-center`}>
+                    } justify-center items-center`}>
                     {selectedVehicle === vehicle.id && (
                       <Ionicons name="checkmark" size={12} color="#ffffff" />
                     )}
@@ -1180,18 +1179,17 @@ const TripRequestScreen = ({ navigation }) => {
           <Text className="text-primary text-lg font-bold mb-4">
             Select Date
           </Text>
-          
+
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <View className="flex-row space-x-3">
               {getNext7Days().map((date, index) => (
                 <TouchableOpacity
                   key={index}
                   onPress={() => setSelectedDate(date)}
-                  className={`bg-white rounded-2xl p-4 border-2 ${
-                    selectedDate.toDateString() === date.toDateString()
-                      ? 'border-accent bg-accent/5' 
+                  className={`bg-white rounded-2xl p-4 border-2 ${selectedDate.toDateString() === date.toDateString()
+                      ? 'border-accent bg-accent/5'
                       : 'border-gray-200'
-                  } shadow-sm shadow-black/5 items-center min-w-[100px]`}
+                    } shadow-sm shadow-black/5 items-center min-w-[100px]`}
                   activeOpacity={0.8}
                 >
                   <Text className="text-primary text-sm font-semibold mb-1">
@@ -1217,22 +1215,20 @@ const TripRequestScreen = ({ navigation }) => {
           <Text className="text-primary text-lg font-bold mb-4">
             Select Time
           </Text>
-          
+
           <View className="flex-row flex-wrap gap-3">
             {timeSlots.map((time) => (
               <TouchableOpacity
                 key={time}
                 onPress={() => setSelectedTime(time)}
-                className={`bg-white rounded-xl px-4 py-3 border-2 ${
-                  selectedTime === time 
-                    ? 'border-accent bg-accent/5' 
+                className={`bg-white rounded-xl px-4 py-3 border-2 ${selectedTime === time
+                    ? 'border-accent bg-accent/5'
                     : 'border-gray-200'
-                } shadow-sm shadow-black/5`}
+                  } shadow-sm shadow-black/5`}
                 activeOpacity={0.8}
               >
-                <Text className={`text-sm font-medium ${
-                  selectedTime === time ? 'text-accent' : 'text-secondary'
-                }`}>
+                <Text className={`text-sm font-medium ${selectedTime === time ? 'text-accent' : 'text-secondary'
+                  }`}>
                   {time}
                 </Text>
               </TouchableOpacity>
@@ -1251,7 +1247,7 @@ const TripRequestScreen = ({ navigation }) => {
           <Text className="text-primary text-lg font-bold mb-4">
             Number of Passengers
           </Text>
-          
+
           <View className="bg-white rounded-2xl p-4 shadow-sm shadow-black/5 border border-gray-100">
             <View className="flex-row items-center justify-between">
               <View className="flex-row items-center">
@@ -1260,7 +1256,7 @@ const TripRequestScreen = ({ navigation }) => {
                   Passengers
                 </Text>
               </View>
-              
+
               <View className="flex-row items-center">
                 <TouchableOpacity
                   onPress={() => setPassengerCount(Math.max(1, passengerCount - 1))}
@@ -1269,11 +1265,11 @@ const TripRequestScreen = ({ navigation }) => {
                 >
                   <Ionicons name="remove" size={16} color="#1A1B23" />
                 </TouchableOpacity>
-                
+
                 <Text className="text-primary text-lg font-semibold mx-4">
                   {passengerCount}
                 </Text>
-                
+
                 <TouchableOpacity
                   onPress={() => setPassengerCount(Math.min(7, passengerCount + 1))}
                   className="w-8 h-8 bg-accent/10 rounded-full justify-center items-center"
@@ -1297,7 +1293,7 @@ const TripRequestScreen = ({ navigation }) => {
           <Text className="text-primary text-lg font-bold mb-4">
             Special Instructions (Optional)
           </Text>
-          
+
           <View className="bg-white rounded-2xl p-4 shadow-sm shadow-black/5 border border-gray-100">
             <TextInput
               value={specialInstructions}
@@ -1339,7 +1335,7 @@ const TripRequestScreen = ({ navigation }) => {
               )}
             </View>
           </View>
-          
+
           <TouchableOpacity
             onPress={handleFindDriver}
             disabled={searchingDrivers}
@@ -1413,7 +1409,7 @@ const TripRequestScreen = ({ navigation }) => {
             <Text className="text-primary text-base font-semibold mb-4">
               Popular Destinations
             </Text>
-            
+
             <ScrollView showsVerticalScrollIndicator={false}>
               {popularLocations.map((location) => (
                 <TouchableOpacity

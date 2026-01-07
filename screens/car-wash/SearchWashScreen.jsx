@@ -20,7 +20,6 @@ const { width, height } = Dimensions.get('window');
 const SearchWashScreen = ({ navigation }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('all');
-  const [showMap, setShowMap] = useState(true);
   const [selectedCenter, setSelectedCenter] = useState(null);
   const [userLocation, setUserLocation] = useState({
     latitude: 20.9374, // Amravati coordinates
@@ -191,14 +190,12 @@ const SearchWashScreen = ({ navigation }) => {
             </View>
           </View>
         </View>
-        
+
         <View className="items-end">
-          <View className={`px-2 py-1 rounded-full ${
-            item.isOpen ? 'bg-green-100' : 'bg-red-100'
-          }`}>
-            <Text className={`text-xs font-semibold ${
-              item.isOpen ? 'text-green-600' : 'text-red-600'
+          <View className={`px-2 py-1 rounded-full ${item.isOpen ? 'bg-green-100' : 'bg-red-100'
             }`}>
+            <Text className={`text-xs font-semibold ${item.isOpen ? 'text-green-600' : 'text-red-600'
+              }`}>
               {item.isOpen ? 'Open' : 'Closed'}
             </Text>
           </View>
@@ -225,7 +222,7 @@ const SearchWashScreen = ({ navigation }) => {
             ({item.reviews} reviews)
           </Text>
         </View>
-        
+
         <View className="flex-row items-center">
           <Ionicons name="navigate-outline" size={14} color="#6C757D" />
           <Text className="text-secondary text-sm ml-1">
@@ -271,7 +268,7 @@ const SearchWashScreen = ({ navigation }) => {
             </View>
           )}
         </View>
-        
+
         <TouchableOpacity
           onPress={() => handleCenterSelect(item)}
           className="rounded-2xl overflow-hidden"
@@ -299,7 +296,7 @@ const SearchWashScreen = ({ navigation }) => {
   return (
     <View className="flex-1 bg-gray-50">
       <StatusBar barStyle="dark-content" backgroundColor="#f9fafb" />
-      
+
       {/* Custom Header */}
       <Animated.View
         style={{
@@ -316,23 +313,17 @@ const SearchWashScreen = ({ navigation }) => {
           >
             <Ionicons name="chevron-back" size={20} color="#1A1B23" />
           </TouchableOpacity>
-          
+
           <View className="flex-1 items-center">
             <Text className="text-primary text-lg font-semibold">Find Car Wash</Text>
           </View>
-          
+
           <TouchableOpacity
-            onPress={() => setShowMap(!showMap)}
-            className={`w-10 h-10 rounded-2xl justify-center items-center ${
-              showMap ? 'bg-accent/10' : 'bg-gray-100'
-            }`}
+            className="w-10 h-10 rounded-2xl justify-center items-center bg-gray-100"
             activeOpacity={0.7}
           >
-            <Ionicons 
-              name={showMap ? "list" : "map"} 
-              size={20} 
-              color={showMap ? "#00C851" : "#1A1B23"} 
-            />
+            {/* Placeholder or just empty view if we want to remove the button entirely, but keeping layout balanced */}
+            <View />
           </TouchableOpacity>
         </View>
 
@@ -371,11 +362,10 @@ const SearchWashScreen = ({ navigation }) => {
               <TouchableOpacity
                 key={filter.id}
                 onPress={() => setSelectedFilter(filter.id)}
-                className={`flex-row items-center px-4 py-2 rounded-full border ${
-                  selectedFilter === filter.id
+                className={`flex-row items-center px-4 py-2 rounded-full border ${selectedFilter === filter.id
                     ? 'bg-accent border-accent'
                     : 'bg-white border-gray-200'
-                }`}
+                  }`}
                 activeOpacity={0.7}
               >
                 <Ionicons
@@ -384,9 +374,8 @@ const SearchWashScreen = ({ navigation }) => {
                   color={selectedFilter === filter.id ? '#ffffff' : '#6C757D'}
                 />
                 <Text
-                  className={`ml-2 text-sm font-medium ${
-                    selectedFilter === filter.id ? 'text-white' : 'text-secondary'
-                  }`}
+                  className={`ml-2 text-sm font-medium ${selectedFilter === filter.id ? 'text-white' : 'text-secondary'
+                    }`}
                 >
                   {filter.label}
                 </Text>
@@ -396,31 +385,7 @@ const SearchWashScreen = ({ navigation }) => {
         </ScrollView>
       </Animated.View>
 
-      {/* Map/List Toggle View */}
-      {showMap ? (
-        // Map View Placeholder
-        <Animated.View
-          style={{
-             height: height * 0.3,
-            opacity: fadeAnim,
-            transform: [{ translateY: slideUpAnim }],
-          }}
-          className="bg-white m-4 rounded-2xl shadow-sm shadow-black/5 border border-gray-100 justify-center items-center"
-          // style={{ height: height * 0.3 }}
-        >
-          <View className="items-center">
-            <View className="w-16 h-16 bg-accent/10 rounded-full justify-center items-center mb-3">
-              <Ionicons name="map" size={32} color="#00C851" />
-            </View>
-            <Text className="text-primary text-lg font-semibold mb-2">
-              Map View
-            </Text>
-            <Text className="text-secondary text-sm text-center">
-              Interactive map with car wash locations{'\n'}will be implemented here
-            </Text>
-          </View>
-        </Animated.View>
-      ) : null}
+
 
       {/* Results Header */}
       <Animated.View

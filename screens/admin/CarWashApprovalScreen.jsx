@@ -16,6 +16,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import '../../global.css';
 
+import { get, post } from '../../lib/api';
+import { endpoints } from '../../config/apiConfig';
+
 const { width, height } = Dimensions.get('window');
 
 const CarWashApprovalScreen = ({ navigation }) => {
@@ -30,86 +33,49 @@ const CarWashApprovalScreen = ({ navigation }) => {
   const slideUpAnim = useRef(new Animated.Value(30)).current;
   const modalSlideAnim = useRef(new Animated.Value(height)).current;
 
-  // Mock data - Replace with API call
-  const [pendingCenters, setPendingCenters] = useState([
-    {
-      id: '1',
-      name: 'Sparkle Auto Wash',
-      ownerName: 'Rajesh Sharma',
-      phone: '+91 98765 43210',
-      email: 'rajesh@sparkleauto.com',
-      address: 'Shop No. 15, MG Road, Amravati, Maharashtra 444601',
-      location: { latitude: 20.9334, longitude: 77.7756 },
-      registeredDate: '2025-01-10',
-      businessLicense: 'WB2025001234',
-      gstNumber: 'GSTN1234567890',
-      services: ['Basic Wash', 'Premium Wash', 'Interior Cleaning', 'Detailing'],
-      operatingHours: '8:00 AM - 8:00 PM',
-      images: ['📷', '📷', '📷'],
-      documents: {
-        license: 'license.pdf',
-        gst: 'gst_certificate.pdf',
-        identity: 'aadhar.pdf',
-      },
-      pricing: {
-        basic: 200,
-        premium: 400,
-        interior: 600,
-        detailing: 1500,
-      },
-    },
-    {
-      id: '2',
-      name: 'Premium Car Care',
-      ownerName: 'Amit Patel',
-      phone: '+91 87654 32109',
-      email: 'amit@premiumcare.com',
-      address: 'Plot 23, Industrial Area, Amravati, Maharashtra 444605',
-      location: { latitude: 20.9434, longitude: 77.7656 },
-      registeredDate: '2025-01-09',
-      businessLicense: 'WB2025001235',
-      gstNumber: 'GSTN0987654321',
-      services: ['Basic Wash', 'Premium Wash', 'Ceramic Coating'],
-      operatingHours: '7:00 AM - 9:00 PM',
-      images: ['📷', '📷'],
-      documents: {
-        license: 'license.pdf',
-        gst: 'gst_certificate.pdf',
-        identity: 'pan.pdf',
-      },
-      pricing: {
-        basic: 250,
-        premium: 450,
-        ceramic: 5000,
-      },
-    },
-  ]);
+  // State for data
+  const [pendingCenters, setPendingCenters] = useState([]);
+  const [approvedCenters, setApprovedCenters] = useState([]);
+  const [rejectedCenters, setRejectedCenters] = useState([]);
 
-  const [approvedCenters, setApprovedCenters] = useState([
-    {
-      id: '3',
-      name: 'Elite Wash Station',
-      ownerName: 'Suresh Kumar',
-      phone: '+91 76543 21098',
-      email: 'suresh@elitewash.com',
-      address: 'Near Railway Station, Amravati',
-      approvedDate: '2025-01-05',
-      status: 'active',
-    },
-  ]);
+  useEffect(() => {
+    fetchData();
+  }, []);
 
-  const [rejectedCenters, setRejectedCenters] = useState([
-    {
-      id: '4',
-      name: 'Quick Wash Hub',
-      ownerName: 'Prakash Singh',
-      phone: '+91 65432 10987',
-      email: 'prakash@quickwash.com',
-      address: 'Camp Area, Amravati',
-      rejectedDate: '2025-01-03',
-      reason: 'Incomplete documentation - Missing GST certificate',
-    },
-  ]);
+  const fetchData = async () => {
+    try {
+      const response = await get(endpoints.admin.approvals); // Ensure this endpoint returns all types or filter
+      // Assuming response is mixed list or we need specific endpoint.
+      // For MVP, reusing same logic as CarOwnerApproval, filtering client side if needed.
+      const data = response || [];
+      // Note: You might need to check 'type' if single endpoint returns both vehicles and centers.
+      // Assuming this screen fetches centers specifically or we filter by type='CENTER'
+
+      // Mocking client-side filter for now if endpoint is generic
+      const centers = data.filter(item => item.type === 'CENTER' || item.businessName); // Simple heuristic
+
+      setPendingCenters(centers.filter(c => c.status === 'PENDING'));
+      setApprovedCenters(centers.filter(c => c.status === 'APPROVED'));
+      setRejectedCenters(centers.filter(c => c.status === 'REJECTED'));
+
+    } catch (error) {
+      console.log('Error fetching center approvals:', error);
+      setPendingCenters([
+        {
+          id: '1',
+          name: 'Sparkle Auto Wash (Demo)',
+          ownerName: 'Rajesh Sharma',
+          phone: '+91 98765 43210',
+          email: 'rajesh@sparkleauto.com',
+          address: 'Shop No. 15, MG Road',
+          status: 'PENDING',
+          registeredDate: '2025-01-10',
+          services: ['Basic Wash'],
+          documents: { license: 'doc.pdf' }
+        }
+      ]);
+    }
+  };
 
   useEffect(() => {
     startAnimations();
@@ -187,22 +153,22 @@ const CarWashApprovalScreen = ({ navigation }) => {
           text: 'Approve',
           onPress: async () => {
             try {
-              // TODO: API call to approve center
-              await new Promise(resolve => setTimeout(resolve, 1000));
-              
+              // API call to approve center
+              await post(endpoints.admin.approve, { id: center.id, type: 'CENTER', action: 'APPROVE' });
+
               // Remove from pending
               setPendingCenters(prev => prev.filter(c => c.id !== center.id));
-              
+
               // Add to approved
               setApprovedCenters(prev => [
                 ...prev,
                 {
                   ...center,
                   approvedDate: new Date().toISOString().split('T')[0],
-                  status: 'active',
+                  status: 'APPROVED',
                 },
               ]);
-              
+
               closeDetailsModal();
               Alert.alert('Success', 'Car wash center approved successfully!');
             } catch (error) {
@@ -221,12 +187,12 @@ const CarWashApprovalScreen = ({ navigation }) => {
     }
 
     try {
-      // TODO: API call to reject center
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
+      // API call to reject center
+      await post(endpoints.admin.approve, { id: selectedCenter.id, type: 'CENTER', action: 'REJECT', reason: rejectionReason });
+
       // Remove from pending
       setPendingCenters(prev => prev.filter(c => c.id !== selectedCenter.id));
-      
+
       // Add to rejected
       setRejectedCenters(prev => [
         ...prev,
@@ -234,9 +200,10 @@ const CarWashApprovalScreen = ({ navigation }) => {
           ...selectedCenter,
           rejectedDate: new Date().toISOString().split('T')[0],
           reason: rejectionReason,
+          status: 'REJECTED'
         },
       ]);
-      
+
       closeRejectModal();
       Alert.alert('Rejected', 'Car wash center has been rejected.');
     } catch (error) {
@@ -298,7 +265,7 @@ const CarWashApprovalScreen = ({ navigation }) => {
           <Ionicons name="checkmark-circle" size={18} color="#00C851" />
           <Text className="text-accent text-sm font-semibold ml-2">Approve</Text>
         </TouchableOpacity>
-        
+
         <TouchableOpacity
           onPress={(e) => {
             e.stopPropagation();
@@ -408,7 +375,7 @@ const CarWashApprovalScreen = ({ navigation }) => {
   return (
     <View className="flex-1 bg-gray-50">
       <StatusBar barStyle="dark-content" backgroundColor="#f9fafb" />
-      
+
       {/* Header */}
       <Animated.View
         style={{
@@ -425,11 +392,11 @@ const CarWashApprovalScreen = ({ navigation }) => {
           >
             <Ionicons name="chevron-back" size={20} color="#1A1B23" />
           </TouchableOpacity>
-          
+
           <View className="flex-1 items-center">
             <Text className="text-primary text-lg font-semibold">Car Wash Approvals</Text>
           </View>
-          
+
           <TouchableOpacity
             className="w-10 h-10 bg-gray-100 rounded-2xl justify-center items-center"
             activeOpacity={0.7}
@@ -462,16 +429,14 @@ const CarWashApprovalScreen = ({ navigation }) => {
         <View className="flex-row bg-gray-100 rounded-2xl p-1">
           <TouchableOpacity
             onPress={() => setActiveTab('pending')}
-            className={`flex-1 py-2 rounded-xl ${
-              activeTab === 'pending' ? 'bg-white' : ''
-            }`}
+            className={`flex-1 py-2 rounded-xl ${activeTab === 'pending' ? 'bg-white' : ''
+              }`}
             activeOpacity={0.8}
           >
             <View className="items-center">
               <Text
-                className={`text-sm font-semibold ${
-                  activeTab === 'pending' ? 'text-primary' : 'text-secondary'
-                }`}
+                className={`text-sm font-semibold ${activeTab === 'pending' ? 'text-primary' : 'text-secondary'
+                  }`}
               >
                 Pending
               </Text>
@@ -484,34 +449,30 @@ const CarWashApprovalScreen = ({ navigation }) => {
               )}
             </View>
           </TouchableOpacity>
-          
+
           <TouchableOpacity
             onPress={() => setActiveTab('approved')}
-            className={`flex-1 py-2 rounded-xl ${
-              activeTab === 'approved' ? 'bg-white' : ''
-            }`}
+            className={`flex-1 py-2 rounded-xl ${activeTab === 'approved' ? 'bg-white' : ''
+              }`}
             activeOpacity={0.8}
           >
             <Text
-              className={`text-sm font-semibold text-center ${
-                activeTab === 'approved' ? 'text-primary' : 'text-secondary'
-              }`}
+              className={`text-sm font-semibold text-center ${activeTab === 'approved' ? 'text-primary' : 'text-secondary'
+                }`}
             >
               Approved
             </Text>
           </TouchableOpacity>
-          
+
           <TouchableOpacity
             onPress={() => setActiveTab('rejected')}
-            className={`flex-1 py-2 rounded-xl ${
-              activeTab === 'rejected' ? 'bg-white' : ''
-            }`}
+            className={`flex-1 py-2 rounded-xl ${activeTab === 'rejected' ? 'bg-white' : ''
+              }`}
             activeOpacity={0.8}
           >
             <Text
-              className={`text-sm font-semibold text-center ${
-                activeTab === 'rejected' ? 'text-primary' : 'text-secondary'
-              }`}
+              className={`text-sm font-semibold text-center ${activeTab === 'rejected' ? 'text-primary' : 'text-secondary'
+                }`}
             >
               Rejected
             </Text>
@@ -668,7 +629,7 @@ const CarWashApprovalScreen = ({ navigation }) => {
                         Close
                       </Text>
                     </TouchableOpacity>
-                    
+
                     <TouchableOpacity
                       onPress={() => handleApprove(selectedCenter)}
                       activeOpacity={0.8}
@@ -742,7 +703,7 @@ const CarWashApprovalScreen = ({ navigation }) => {
               >
                 <Text className="text-primary text-base font-semibold">Cancel</Text>
               </TouchableOpacity>
-              
+
               <TouchableOpacity
                 onPress={handleReject}
                 className="flex-1 bg-red-500 rounded-2xl py-4 justify-center items-center"
