@@ -765,6 +765,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import api from '../../lib/api';
 import '../../global.css';
 
 import { useUser } from '../../context/UserContext';
@@ -884,6 +885,43 @@ const LoginScreen = ({ navigation }) => {
 
     } catch (error) {
       Alert.alert('Login Failed', error.message || 'Invalid email or password. Please try again.');
+      const response = await api.post('/auth/login', {
+        email: email,
+        password: password
+      });
+
+      console.log('Login Response:', response.data);
+
+      // Navigate based on role (assuming role is part of response, default to Home for now)
+      // You might want to store the token here using SecureStore
+      // await SecureStore.setItemAsync('userToken', response.data.token);
+
+      // Simple routing logic based on email for now as per previous logic, 
+      // or use response data if available.
+      let role = null;
+      let navigateTo = null;
+
+      // Keep the existing navigation logic for demo purposes, 
+      // but now it's triggered after a real API success.
+      if (email.includes('car_owner') || email === 'maheshkadam9298@gmail.com') {
+        role = 'car_owner';
+        navigateTo = 'Home';
+      } else if (email.includes('admin') || email === 'admin@gmail.com') {
+        role = 'admin';
+        navigateTo = 'AdminTabs';
+      } else if (email.includes('driver') || email === 'driver@gmail.com') {
+        role = 'driver';
+        navigateTo = 'DriverTabs';
+      } else {
+        // Default fallback
+        navigateTo = 'Home';
+      }
+
+      navigation.replace(navigateTo);
+
+    } catch (error) {
+      console.error('Login error details:', error);
+      Alert.alert('Login Failed', error.response?.data?.message || 'Invalid email or password. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -1162,3 +1200,4 @@ const LoginScreen = ({ navigation }) => {
 };
 
 export default LoginScreen;
+///saasaassa
