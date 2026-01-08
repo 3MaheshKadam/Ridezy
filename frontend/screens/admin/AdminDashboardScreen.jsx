@@ -12,6 +12,8 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
 import '../../global.css';
+import { get } from '../../lib/api';
+import { endpoints } from '../../config/apiConfig';
 
 const { width, height } = Dimensions.get('window');
 
@@ -23,10 +25,21 @@ const AdminDashboardScreen = ({ navigation }) => {
     pendingCarOwners: 5,
     activeSubscriptions: 156,
     totalRevenue: 245680,
-    todayRevenue: 8450,
-    activeUsers: 542,
-    activeDrivers: 89,
-    activeCarWash: 34,
+    todayRevenue: 0,
+    activeUsers: 0,
+    activeDrivers: 0,
+    activeCarWash: 0,
+    trends: {
+      revenue: '+0%',
+      users: '+0%',
+      drivers: '+0%',
+      centers: '+0%',
+      revenueType: 'positive',
+      usersType: 'positive',
+      driversType: 'positive',
+      centersType: 'positive',
+    },
+    recentActivities: []
   });
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -54,11 +67,11 @@ const AdminDashboardScreen = ({ navigation }) => {
   };
 
   const fetchDashboardData = async () => {
-    // TODO: Implement API call to fetch dashboard data
     try {
-      // Simulated API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      // Update dashboardData with API response
+      const data = await get(endpoints.admin.dashboard);
+      if (data) {
+        setDashboardData(data);
+      }
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     }
@@ -71,7 +84,7 @@ const AdminDashboardScreen = ({ navigation }) => {
   };
 
   const formatCurrency = (amount) => {
-    return `₹${amount.toLocaleString('en-IN')}`;
+    return `₹${(amount || 0).toLocaleString('en-IN')}`;
   };
 
   // Quick action cards
@@ -135,8 +148,8 @@ const AdminDashboardScreen = ({ navigation }) => {
       title: 'Total Revenue',
       value: formatCurrency(dashboardData.totalRevenue),
       icon: 'trending-up',
-      change: '+12.5%',
-      changeType: 'positive',
+      change: dashboardData.trends.revenue,
+      changeType: dashboardData.trends.revenueType,
       color: '#10B981',
     },
     {
@@ -144,8 +157,8 @@ const AdminDashboardScreen = ({ navigation }) => {
       title: 'Active Users',
       value: dashboardData.activeUsers,
       icon: 'people',
-      change: '+8.2%',
-      changeType: 'positive',
+      change: dashboardData.trends.users,
+      changeType: dashboardData.trends.usersType,
       color: '#3B82F6',
     },
     {
@@ -153,8 +166,8 @@ const AdminDashboardScreen = ({ navigation }) => {
       title: 'Active Drivers',
       value: dashboardData.activeDrivers,
       icon: 'car',
-      change: '+5.1%',
-      changeType: 'positive',
+      change: dashboardData.trends.drivers,
+      changeType: dashboardData.trends.driversType,
       color: '#8B5CF6',
     },
     {
@@ -162,51 +175,14 @@ const AdminDashboardScreen = ({ navigation }) => {
       title: 'Car Wash Centers',
       value: dashboardData.activeCarWash,
       icon: 'water',
-      change: '+3.7%',
-      changeType: 'positive',
+      change: dashboardData.trends.centers,
+      changeType: dashboardData.trends.centersType,
       color: '#06B6D4',
     },
   ];
 
   // Recent activities
-  const recentActivities = [
-    {
-      id: '1',
-      type: 'carwash_approval',
-      title: 'New Car Wash Registration',
-      description: 'Sparkle Auto Wash - Pending Approval',
-      time: '5 min ago',
-      icon: 'car-wash',
-      color: '#3B82F6',
-    },
-    {
-      id: '2',
-      type: 'driver_approval',
-      title: 'Driver Registration',
-      description: 'Amit Kumar - Pending Verification',
-      time: '15 min ago',
-      icon: 'person',
-      color: '#8B5CF6',
-    },
-    {
-      id: '3',
-      type: 'payment',
-      title: 'Subscription Payment',
-      description: '₹2,500 received from Premium Wash',
-      time: '1 hour ago',
-      icon: 'payments',
-      color: '#10B981',
-    },
-    {
-      id: '4',
-      type: 'subscription',
-      title: 'New Subscription',
-      description: 'Car Owner - Monthly Plan',
-      time: '2 hours ago',
-      icon: 'card-membership',
-      color: '#F59E0B',
-    },
-  ];
+  const recentActivities = dashboardData.recentActivities || [];
 
   return (
     <View className="flex-1 bg-gray-50">

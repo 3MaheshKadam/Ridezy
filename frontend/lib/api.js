@@ -9,30 +9,34 @@ import * as SecureStore from 'expo-secure-store';
  */
 export const apiCall = async (endpoint, options = {}) => {
     const url = `${API_BASE_URL}${endpoint}`;
-
     const token = await SecureStore.getItemAsync('userToken');
 
     const headers = {
-        'Content-Type': 'application/json',
         ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
         ...options.headers,
     };
+
+    // Only set JSON content type if it's not already set and not FormData
+    const isFormData = options.body instanceof FormData;
+    if (!headers['Content-Type'] && !isFormData) {
+        headers['Content-Type'] = 'application/json';
+    }
 
     const config = {
         ...options,
         headers,
     };
 
-    if (options.body && typeof options.body === 'object') {
+    // Serialize body if it's an object and NOT FormData
+    if (options.body && typeof options.body === 'object' && !isFormData) {
         config.body = JSON.stringify(options.body);
     }
 
     try {
         const response = await fetch(url, config);
 
-        // Handle 401 Unauthorized globally if needed (e.g., logout)
         if (response.status === 401) {
-            // Handle logout logic or token refresh here
+            // Handle global logout if needed
         }
 
         const data = await response.json();
@@ -47,6 +51,21 @@ export const apiCall = async (endpoint, options = {}) => {
         console.error(`Request Failed: ${url}`, error);
         throw error;
     }
+};
+
+export const uploadImage = async (fileUri) => {
+    const formData = new FormData();
+    const filename = fileUri.split('/').pop();
+    const match = /\.(\w+)$/.exec(filename);
+    const type = match ? `image/${match[1]}` : `image/jpeg`;
+
+    formData.append('file', { uri: fileUri, name: filename, type });
+
+    return apiCall('/upload', {
+        method: 'POST',
+        // Do NOT set Content-Type header for FormData, let fetch handle it (boundary)
+        body: formData,
+    });
 };
 
 export const post = (endpoint, body) => apiCall(endpoint, { method: 'POST', body });

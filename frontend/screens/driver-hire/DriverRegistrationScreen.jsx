@@ -14,9 +14,10 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import '../../global.css';
 
-import { post } from '../../lib/api';
+import { post, uploadImage } from '../../lib/api';
 import { endpoints } from '../../config/apiConfig';
 // import { useUser } from '../../context/UserContext'; 
 
@@ -223,24 +224,66 @@ const DriverRegistrationScreen = ({ navigation }) => {
     });
   };
 
-  const handleDocumentUpload = (type, method) => {
-    // In a real app, use DocumentPicker or ImagePicker here.
-    // For MVP, we'll confirm the 'upload' and set a mock URL.
-    const mockUrl = `https://ridezy-uploads.example.com/${type}_${Date.now()}.png`;
-
-    setDocuments(prev => ({
-      ...prev,
-      [type]: {
-        uploaded: true,
-        verified: false,
-        fileName: `${type}_scan.jpg`,
-        uri: mockUrl,
+  const handleDocumentUpload = async (type, source) => {
+    try {
+      let result;
+      if (source === 'camera') {
+        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert('Permission Denied', 'Sorry, we need camera permissions to make this work!');
+          return;
+        }
+        result = await ImagePicker.launchCameraAsync({
+          mediaTypes: ['images'],
+          allowsEditing: true,
+          aspect: [4, 3],
+          quality: 0.8,
+        });
+      } else {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert('Permission Denied', 'Sorry, we need gallery permissions to make this work!');
+          return;
+        }
+        result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ['images'],
+          allowsEditing: true,
+          aspect: [4, 3],
+          quality: 0.8,
+        });
       }
-    }));
 
-    closeDocumentModal();
-    Alert.alert('Success', 'Document uploaded successfully!');
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        setIsLoading(true);
+        // Automatically upload after picking
+        const uploadResult = await uploadImage(result.assets[0].uri);
+
+        if (uploadResult && uploadResult.url) {
+          setDocuments(prev => ({
+            ...prev,
+            [type]: {
+              uploaded: true,
+              verified: false,
+              fileName: 'uploaded_doc.jpg', // In a real app, parse from URL
+              uri: uploadResult.url, // The remote URL from backend
+            }
+          }));
+          closeDocumentModal();
+          Alert.alert('Success', 'Document uploaded successfully!');
+        } else {
+          throw new Error("Upload failed, no URL returned");
+        }
+      }
+    } catch (error) {
+      console.log('Upload error:', error);
+      Alert.alert('Error', 'Failed to upload document. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
+
+  // Helper removed as logic is now in handleDocumentUpload
+  const pickAndUpload = async (docType) => { };
 
   const handleSubmit = async () => {
     setIsLoading(true);
@@ -249,6 +292,7 @@ const DriverRegistrationScreen = ({ navigation }) => {
       // Construct payload from state
       const payload = {
         ...formData,
+        experienceYears: formData.yearsExperience, // Map frontend state to backend expectation
         documents: Object.keys(documents).reduce((acc, key) => {
           acc[key] = documents[key].uri;
           return acc;
@@ -787,40 +831,39 @@ const DriverRegistrationScreen = ({ navigation }) => {
               </Text>
             </View>
 
+            {/* Modal Content - File Options */}
             {selectedDocType && (
               <View className="mb-6">
                 <Text className="text-primary text-base font-semibold mb-2">
                   {documentTypes.find(d => d.id === selectedDocType)?.name}
                 </Text>
-                <Text className="text-secondary text-sm">
+                <Text className="text-secondary text-sm mb-6">
                   {documentTypes.find(d => d.id === selectedDocType)?.description}
                 </Text>
+
+                <TouchableOpacity
+                  onPress={() => handleDocumentUpload(selectedDocType, 'camera')}
+                  className="flex-row items-center bg-gray-50 p-4 rounded-xl mb-3 border border-gray-200"
+                >
+                  <View className="w-10 h-10 bg-white rounded-full justify-center items-center shadow-sm mr-3">
+                    <Ionicons name="camera" size={20} color="#00C851" />
+                  </View>
+                  <Text className="text-primary text-base font-medium">Take Photo</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => handleDocumentUpload(selectedDocType, 'gallery')}
+                  className="flex-row items-center bg-gray-50 p-4 rounded-xl border border-gray-200"
+                >
+                  <View className="w-10 h-10 bg-white rounded-full justify-center items-center shadow-sm mr-3">
+                    <Ionicons name="images" size={20} color="#00C851" />
+                  </View>
+                  <Text className="text-primary text-base font-medium">Choose from Gallery</Text>
+                </TouchableOpacity>
               </View>
             )}
 
-            <View className="space-y-3 mb-6">
-              <TouchableOpacity
-                onPress={() => handleDocumentUpload(selectedDocType, 'camera')}
-                className="bg-accent/10 rounded-2xl p-4 flex-row items-center"
-                activeOpacity={0.8}
-              >
-                <Ionicons name="camera" size={24} color="#00C851" />
-                <Text className="text-accent text-base font-semibold ml-3">
-                  Take Photo
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={() => handleDocumentUpload(selectedDocType, 'gallery')}
-                className="bg-primary/10 rounded-2xl p-4 flex-row items-center"
-                activeOpacity={0.8}
-              >
-                <Ionicons name="images" size={24} color="#1A1B23" />
-                <Text className="text-primary text-base font-semibold ml-3">
-                  Choose from Gallery
-                </Text>
-              </TouchableOpacity>
-            </View>
+            {/* Removed duplicate buttons block that was here */}
 
             <TouchableOpacity
               onPress={closeDocumentModal}

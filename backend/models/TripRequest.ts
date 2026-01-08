@@ -28,6 +28,7 @@ const TripRequestSchema = new mongoose.Schema({
         ref: 'User',
         default: null,
     },
+    distance: { type: Number, default: 0 }, // Distance in km
     price: { type: Number },
 }, { timestamps: true });
 

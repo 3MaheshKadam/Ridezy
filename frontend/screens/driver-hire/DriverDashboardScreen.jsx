@@ -14,64 +14,51 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import '../../global.css';
+import { useUser } from '../../context/UserContext';
+import { get, put } from '../../lib/api';
+import { endpoints } from '../../config/apiConfig';
 
 const { width, height } = Dimensions.get('window');
 
 const DriverDashboardScreen = ({ navigation }) => {
+  const { user } = useUser();
   const [isOnline, setIsOnline] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState('today');
   const [refreshing, setRefreshing] = useState(false);
-  const [pendingTrips, setPendingTrips] = useState(2);
+  const [pendingTrips, setPendingTrips] = useState(0);
+  const [dashboardData, setDashboardData] = useState(null);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideUpAnim = useRef(new Animated.Value(30)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
-  // Mock driver data
-  const driverProfile = {
-    name: 'Rajesh Kumar',
+  // Default Fallback Data (Skeleton)
+  const defaultProfile = {
+    name: user?.full_name || 'Driver',
     avatar: '👨‍💼',
-    rating: 4.8,
-    totalTrips: 342,
-    memberSince: '2023',
-    vehicleNumber: 'MH 27 AB 1234',
-    vehicleName: 'Honda City',
-    verificationStatus: 'verified',
+    rating: 5.0,
+    totalTrips: 0,
+    memberSince: new Date().getFullYear().toString(),
+    vehicleNumber: 'Pending',
+    vehicleName: 'Vehicle',
+    verificationStatus: 'pending',
   };
 
-  // Performance data for different periods
-  const performanceData = {
-    today: {
-      earnings: 1250,
-      trips: 8,
-      distance: 147,
-      hours: 6.5,
-      acceptanceRate: 92,
-      cancellationRate: 3,
-      avgRating: 4.9,
-      completionRate: 97,
-    },
-    week: {
-      earnings: 8750,
-      trips: 56,
-      distance: 1023,
-      hours: 45,
-      acceptanceRate: 89,
-      cancellationRate: 5,
-      avgRating: 4.8,
-      completionRate: 95,
-    },
-    month: {
-      earnings: 35200,
-      trips: 234,
-      distance: 4156,
-      hours: 186,
-      acceptanceRate: 91,
-      cancellationRate: 4,
-      avgRating: 4.8,
-      completionRate: 96,
-    },
+  const defaultPerformance = {
+    today: { earnings: 0, trips: 0, distance: 0, hours: 0, acceptanceRate: 100, cancellationRate: 0, avgRating: 5.0, completionRate: 100 },
+    week: { earnings: 0, trips: 0 },
+    month: { earnings: 0, trips: 0 },
   };
+
+  const driverProfile = dashboardData?.profile || defaultProfile;
+  const performanceData = dashboardData?.performance || defaultPerformance;
+  const recentActivities = dashboardData?.recentActivities || [];
+
+  const periods = [
+    { id: 'today', label: 'Today' },
+    { id: 'week', label: 'This Week' },
+    { id: 'month', label: 'This Month' },
+  ];
 
   // Quick actions for drivers
   const quickActions = [
@@ -118,7 +105,7 @@ const DriverDashboardScreen = ({ navigation }) => {
     {
       title: 'Total Earnings',
       value: `₹${performanceData[selectedPeriod].earnings.toLocaleString()}`,
-      change: '+₹320',
+      change: '+₹0', // Dynamic change tracking to be added later
       changeType: 'positive',
       icon: 'trending-up',
       color: '#00C851',
@@ -126,78 +113,45 @@ const DriverDashboardScreen = ({ navigation }) => {
     {
       title: 'Completed Trips',
       value: performanceData[selectedPeriod].trips.toString(),
-      change: '+5',
+      change: '+0',
       changeType: 'positive',
       icon: 'car',
       color: '#3B82F6',
     },
     {
       title: 'Distance Covered',
-      value: `${performanceData[selectedPeriod].distance} km`,
-      change: '+23 km',
+      value: `${performanceData[selectedPeriod].distance || 0} km`, // Handle potential missing distance
+      change: '+0 km',
       changeType: 'positive',
       icon: 'location',
       color: '#8B5CF6',
     },
     {
       title: 'Hours Online',
-      value: `${performanceData[selectedPeriod].hours}h`,
-      change: '+1.2h',
+      value: `${performanceData[selectedPeriod].hours || 0}h`, // Handle potential missing hours
+      change: '+0h',
       changeType: 'positive',
       icon: 'time',
       color: '#F59E0B',
     },
   ];
 
-  // Recent activities
-  const recentActivities = [
-    {
-      id: '1',
-      type: 'trip_completed',
-      title: 'Trip completed',
-      subtitle: 'Airport pickup - ₹450 earned',
-      time: '15 min ago',
-      icon: 'checkmark-circle',
-      iconBg: '#00C851',
-    },
-    {
-      id: '2',
-      type: 'rating_received',
-      title: '5-star rating received',
-      subtitle: 'Great service by customer Priya',
-      time: '1 hour ago',
-      icon: 'star',
-      iconBg: '#F59E0B',
-    },
-    {
-      id: '3',
-      type: 'bonus_earned',
-      title: 'Peak hour bonus',
-      subtitle: 'Extra ₹50 for morning rush',
-      time: '2 hours ago',
-      icon: 'gift',
-      iconBg: '#00C851',
-    },
-    {
-      id: '4',
-      type: 'trip_completed',
-      title: 'Long trip completed',
-      subtitle: 'Amravati to Nagpur - ₹1200',
-      time: '5 hours ago',
-      icon: 'car',
-      iconBg: '#3B82F6',
-    },
-  ];
-
-  const periods = [
-    { id: 'today', label: 'Today' },
-    { id: 'week', label: 'This Week' },
-    { id: 'month', label: 'This Month' },
-  ];
-
   useEffect(() => {
     startAnimations();
+    fetchDashboardData();
   }, []);
+
+  const fetchDashboardData = async () => {
+    try {
+      const data = await get(endpoints.driver.dashboard);
+      if (data) {
+        setDashboardData(data);
+        setIsOnline(data.isOnline);
+      }
+    } catch (error) {
+      console.error('Failed to fetch driver dashboard:', error);
+    }
+  };
 
   const startAnimations = () => {
     Animated.parallel([
@@ -233,30 +187,22 @@ const DriverDashboardScreen = ({ navigation }) => {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    // TODO: Refresh driver data from API
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await fetchDashboardData();
     setRefreshing(false);
   };
 
-  const toggleOnlineStatus = () => {
-    setIsOnline(!isOnline);
+  const toggleOnlineStatus = async () => {
+    try {
+      const newStatus = !isOnline;
+      const response = await put(endpoints.driver.status, { isOnline: newStatus });
 
-    Alert.alert(
-      isOnline ? 'Going Offline' : 'Going Online',
-      isOnline ?
-        'You will stop receiving trip requests and current location tracking will be disabled.' :
-        'You will start receiving trip requests and location tracking will be enabled.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: isOnline ? 'Go Offline' : 'Go Online',
-          onPress: () => {
-            // TODO: Update driver status via API
-            Alert.alert('Status Updated', `You are now ${!isOnline ? 'online' : 'offline'}`);
-          }
-        }
-      ]
-    );
+      if (response && response.success) {
+        setIsOnline(newStatus);
+        Alert.alert('Status Updated', `You are now ${newStatus ? 'online' : 'offline'}`);
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to update status');
+    }
   };
 
   const handleEmergencySupport = () => {
@@ -433,8 +379,8 @@ const DriverDashboardScreen = ({ navigation }) => {
                   key={period.id}
                   onPress={() => setSelectedPeriod(period.id)}
                   className={`px-6 py-3 rounded-2xl ${selectedPeriod === period.id
-                      ? 'bg-accent'
-                      : 'bg-white border border-gray-200'
+                    ? 'bg-accent'
+                    : 'bg-white border border-gray-200'
                     } shadow-sm shadow-black/5`}
                   activeOpacity={0.8}
                 >

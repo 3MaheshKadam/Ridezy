@@ -12,13 +12,12 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import '../../global.css';
+import { useUser } from '../../context/UserContext';
 
 const { width, height } = Dimensions.get('window');
 
 const HomeScreen = ({ navigation }) => {
-  // Mock user data - replace with actual user context/AsyncStorage
-  const [userRole, setUserRole] = useState('carOwner'); // carOwner, driver, carWashCenter, admin
-  const [userName, setUserName] = useState('Alex Johnson');
+  const { user } = useUser();
   const [isDriverOnline, setIsDriverOnline] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [stats, setStats] = useState({
@@ -29,12 +28,28 @@ const HomeScreen = ({ navigation }) => {
     pendingBookings: 3,
   });
 
+  // Derived state from user context
+  const userName = user?.full_name || 'Guest';
+  // Map backend roles to frontend roles if needed, or use directly
+  // Backend: ADMIN, OWNER, DRIVER, CENTER
+  // Frontend logic expected: carOwner, driver, carWashCenter
+  const getUserRoleForUI = () => {
+    switch (user?.role) {
+      case 'OWNER': return 'carOwner';
+      case 'DRIVER': return 'driver';
+      case 'CENTER': return 'carWashCenter';
+      case 'ADMIN': return 'admin';
+      default: return 'carOwner';
+    }
+  };
+
+  const userRole = getUserRoleForUI();
+
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideUpAnim = useRef(new Animated.Value(30)).current;
 
   useEffect(() => {
     startAnimations();
-    loadUserData();
   }, []);
 
   const startAnimations = () => {
@@ -53,16 +68,10 @@ const HomeScreen = ({ navigation }) => {
     ]).start();
   };
 
-  const loadUserData = async () => {
-    // TODO: Load user data from AsyncStorage/API
-    // const userData = await getUserData();
-    // setUserRole(userData.role);
-    // setUserName(userData.name);
-  };
-
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadUserData();
+    // Refresh user data if needed using a context method, e.g. await refreshProfile();
+    await new Promise(resolve => setTimeout(resolve, 1000));
     setRefreshing(false);
   };
 
@@ -192,7 +201,7 @@ const HomeScreen = ({ navigation }) => {
                 <View className="flex-row items-center mt-1">
                   <View className="w-2 h-2 bg-accent rounded-full mr-2" />
                   <Text className="text-secondary text-sm font-medium capitalize">
-                    {userRole.replace(/([A-Z])/g, ' $1').trim()}
+                    {userRole?.replace(/([A-Z])/g, ' $1').trim()}
                   </Text>
                 </View>
               </View>

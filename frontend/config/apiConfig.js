@@ -13,8 +13,14 @@ export const endpoints = {
     },
     admin: {
         approvals: '/admin/approvals',
-        approve: '/admin/approve',
+        approve: '/admin/approve-user',
+        dashboard: '/admin/dashboard',
     },
+    driver: {
+        dashboard: '/driver/dashboard',
+        status: '/driver/status',
+    },
+    upload: '/upload',
     trips: {
         create: '/trips',
         history: '/trips', // GET

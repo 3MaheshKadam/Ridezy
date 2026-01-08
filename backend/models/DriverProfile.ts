@@ -8,12 +8,28 @@ const DriverProfileSchema = new mongoose.Schema({
         unique: true,
     },
     licenseNumber: { type: String, required: true },
-    licenseUrl: { type: String, required: true }, // URL to stored file
+
+    documents: {
+        drivingLicense: String,
+        aadharCard: String,
+        panCard: String,
+        vehicleRC: String,
+        insurance: String,
+        photo: String,
+    }, // URLs to stored files
     experienceYears: { type: Number, required: true },
+    rating: { type: Number, default: 5.0 },
     isAvailable: { type: Boolean, default: false },
     currentLocation: {
         lat: Number,
         lng: Number,
+    },
+    vehicleDetails: {
+        make: String,
+        model: String,
+        year: String,
+        number: String,
+        color: String,
     },
     bankDetails: {
         type: Object, // Structured JSON: { accountName, accountNumber, ifsc }
