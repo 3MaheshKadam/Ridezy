@@ -62,13 +62,41 @@ const CarOwnerRegistrationScreen = ({ navigation }) => {
         try {
             const result = await DocumentPicker.getDocumentAsync({
                 type: ['application/pdf', 'image/*'],
+                copyToCacheDirectory: true,
             });
 
-            if (!result.canceled) {
-                setFormData(prev => ({ ...prev, [type]: result.assets[0] }));
-            }
+            if (result.canceled) return;
+
+            const file = result.assets[0];
+
+            // Upload to backend
+            const formData = new FormData();
+            formData.append('file', {
+                uri: file.uri,
+                name: file.name,
+                type: file.mimeType || 'application/octet-stream',
+            });
+
+            setIsLoading(true);
+            console.log('Uploading...', file.name);
+            const response = await post(endpoints.common.upload, formData);
+
+            const fileUrl = response.url || response.fileUrl || response.secure_url;
+            if (!fileUrl) throw new Error('Upload failed - No URL returned');
+
+            setFormData(prev => ({
+                ...prev,
+                [type]: {
+                    name: file.name,
+                    uri: fileUrl // Store the real remote URL
+                }
+            }));
+
         } catch (err) {
-            console.log('Document picker error:', err);
+            console.error('Document upload error:', err);
+            Alert.alert('Upload Failed', 'Could not upload document.');
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -101,9 +129,8 @@ const CarOwnerRegistrationScreen = ({ navigation }) => {
                 make: formData.vehicleMake,
                 model: formData.vehicleModel,
                 plateNumber: formData.vehicleNumber,
-                // Mock URLs for now as we don't have file upload infra in this snippet
-                rcDocumentUrl: 'https://example.com/rc_mock.pdf',
-                insuranceUrl: 'https://example.com/ins_mock.pdf',
+                rcDocumentUrl: formData.rcDoc.uri,
+                insuranceUrl: formData.insuranceDoc.uri,
             };
 
             await post(endpoints.onboarding.ownerVehicle, payload);

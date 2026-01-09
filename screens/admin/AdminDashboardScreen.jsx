@@ -10,23 +10,26 @@ import {
   RefreshControl,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons, MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
+import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import '../../global.css';
+import { get } from '../../lib/api';
+import { endpoints } from '../../config/apiConfig';
 
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 
 const AdminDashboardScreen = ({ navigation }) => {
   const [refreshing, setRefreshing] = useState(false);
+  // Initialize with safe defaults (zeros)
   const [dashboardData, setDashboardData] = useState({
-    pendingCarWash: 8,
-    pendingDrivers: 12,
-    pendingCarOwners: 5,
-    activeSubscriptions: 156,
-    totalRevenue: 245680,
-    todayRevenue: 8450,
-    activeUsers: 542,
-    activeDrivers: 89,
-    activeCarWash: 34,
+    pendingCarWash: 0,
+    pendingDrivers: 0,
+    pendingCarOwners: 0,
+    activeSubscriptions: 0,
+    totalRevenue: 0,
+    todayRevenue: 0,
+    activeUsers: 0,
+    activeDrivers: 0,
+    activeCarWash: 0,
   });
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -54,11 +57,14 @@ const AdminDashboardScreen = ({ navigation }) => {
   };
 
   const fetchDashboardData = async () => {
-    // TODO: Implement API call to fetch dashboard data
     try {
-      // Simulated API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      // Update dashboardData with API response
+      const data = await get(endpoints.admin.stats);
+      if (data) {
+        setDashboardData(prev => ({
+          ...prev,
+          ...data
+        }));
+      }
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     }
@@ -71,7 +77,9 @@ const AdminDashboardScreen = ({ navigation }) => {
   };
 
   const formatCurrency = (amount) => {
-    return `₹${amount.toLocaleString('en-IN')}`;
+    // Safe fallback if amount is null/undefined
+    const val = amount || 0;
+    return `₹${val.toLocaleString('en-IN')}`;
   };
 
   // Quick action cards
@@ -79,7 +87,7 @@ const AdminDashboardScreen = ({ navigation }) => {
     {
       id: '1',
       title: 'Car Wash Approvals',
-      icon: 'car-wash',
+      icon: 'local-car-wash',
       iconType: 'material',
       count: dashboardData.pendingCarWash,
       color: '#3B82F6',
@@ -89,7 +97,7 @@ const AdminDashboardScreen = ({ navigation }) => {
     {
       id: '2',
       title: 'Driver Approvals',
-      icon: 'steering',
+      icon: 'toys',
       iconType: 'material',
       count: dashboardData.pendingDrivers,
       color: '#8B5CF6',
@@ -168,7 +176,7 @@ const AdminDashboardScreen = ({ navigation }) => {
     },
   ];
 
-  // Recent activities
+  // Recent activities (Mock data for now, could be dynamic later)
   const recentActivities = [
     {
       id: '1',
@@ -176,7 +184,7 @@ const AdminDashboardScreen = ({ navigation }) => {
       title: 'New Car Wash Registration',
       description: 'Sparkle Auto Wash - Pending Approval',
       time: '5 min ago',
-      icon: 'car-wash',
+      icon: 'local-car-wash',
       color: '#3B82F6',
     },
     {
@@ -187,24 +195,6 @@ const AdminDashboardScreen = ({ navigation }) => {
       time: '15 min ago',
       icon: 'person',
       color: '#8B5CF6',
-    },
-    {
-      id: '3',
-      type: 'payment',
-      title: 'Subscription Payment',
-      description: '₹2,500 received from Premium Wash',
-      time: '1 hour ago',
-      icon: 'payments',
-      color: '#10B981',
-    },
-    {
-      id: '4',
-      type: 'subscription',
-      title: 'New Subscription',
-      description: 'Car Owner - Monthly Plan',
-      time: '2 hours ago',
-      icon: 'card-membership',
-      color: '#F59E0B',
     },
   ];
 
@@ -295,7 +285,7 @@ const AdminDashboardScreen = ({ navigation }) => {
                     <View className="w-10 h-10 bg-white/20 rounded-xl justify-center items-center">
                       <MaterialIcons name={action.icon} size={22} color="#ffffff" />
                     </View>
-                    {typeof action.count === 'number' && action.count > 0 && (
+                    {(typeof action.count === 'number' && action.count > 0) && (
                       <View className="bg-white/30 px-2 py-1 rounded-full">
                         <Text className="text-white text-xs font-bold">
                           {action.count}

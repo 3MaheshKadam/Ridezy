@@ -10,9 +10,8 @@ import {
     Alert,
     Modal,
     TextInput,
-    Image,
+    ActivityIndicator,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import '../../global.css';
 import { get, post } from '../../lib/api';
@@ -26,7 +25,6 @@ const CarOwnerApprovalScreen = ({ navigation }) => {
     const [showDetailsModal, setShowDetailsModal] = useState(false);
     const [showRejectModal, setShowRejectModal] = useState(false);
     const [rejectionReason, setRejectionReason] = useState('');
-    const [searchQuery, setSearchQuery] = useState('');
     const [isLoading, setIsLoading] = useState(false);
 
     const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -40,52 +38,27 @@ const CarOwnerApprovalScreen = ({ navigation }) => {
 
     useEffect(() => {
         startAnimations();
-        fetchData(); // In a real app, this would fetch from API
-        // Setting some mock data for demonstration if API is not available
-        setPendingList([
-            {
-                id: '1',
-                ownerName: 'Rahul Sharma',
-                vehicleMake: 'Honda',
-                vehicleModel: 'City',
-                vehicleNumber: 'MH 12 AB 1234',
-                registeredDate: '2025-01-15',
-                rcDocumentUrl: 'https://example.com/rc.pdf',
-                insuranceUrl: 'https://example.com/ins.pdf',
-                status: 'PENDING'
-            }
-        ]);
+        fetchData();
     }, []);
 
     const fetchData = async () => {
+        setIsLoading(true);
         try {
             const response = await get(endpoints.admin.approvals);
-            // Assuming endpoint returns array of all approvals, we can filter client-side or assume endpoint accepts status.
-            // For now, let's assume it returns a list and we categorize it.
-            // If backend categorizes, we might need separate endpoints or params.
-
-            // Adjust based on your backend structure. This example assumes a flat list.
             const data = response || [];
 
-            setPendingList(data.filter(item => item.status === 'PENDING'));
-            setApprovedList(data.filter(item => item.status === 'APPROVED'));
-            setRejectedList(data.filter(item => item.status === 'REJECTED'));
+            // Filter for 'VEHICLE' type (Car Owner Approvals)
+            const vehicles = data.filter(item => item.type === 'VEHICLE');
+
+            setPendingList(vehicles.filter(item => item.status === 'PENDING' || item.status === 'PENDING_APPROVAL'));
+            setApprovedList(vehicles.filter(item => item.status === 'APPROVED' || item.status === 'ACTIVE'));
+            setRejectedList(vehicles.filter(item => item.status === 'REJECTED'));
 
         } catch (error) {
             console.log('Error fetching approvals:', error);
-            // Fallback to mock data on error for demo stability, or show Alert
-            Alert.alert('Error', 'Could not fetch approvals. Showing demo data.');
-            setPendingList([{
-                id: '1',
-                ownerName: 'Rahul Sharma (Demo)',
-                vehicleMake: 'Honda',
-                vehicleModel: 'City',
-                vehicleNumber: 'MH 12 AB 1234',
-                registeredDate: '2025-01-15',
-                rcDocumentUrl: 'https://example.com/rc.pdf',
-                insuranceUrl: 'https://example.com/ins.pdf',
-                status: 'PENDING'
-            }]);
+            Alert.alert('Error', 'Could not fetch approvals.');
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -195,7 +168,6 @@ const CarOwnerApprovalScreen = ({ navigation }) => {
             // Optimistic update
             setPendingList(prev => prev.filter(i => i.id !== selectedItem.id));
             setRejectedList(prev => [...prev, { ...selectedItem, status: 'REJECTED', rejectedDate: new Date().toISOString(), reason: rejectionReason }]);
-            setRejectedList(prev => [...prev, { ...selectedItem, status: 'REJECTED', rejectedDate: new Date().toISOString(), reason: rejectionReason }]);
 
             closeRejectModal();
             Alert.alert('Rejected', 'Vehicle registration rejected.');
@@ -214,10 +186,10 @@ const CarOwnerApprovalScreen = ({ navigation }) => {
             <View className="flex-row items-center justify-between mb-2">
                 <Text className="text-primary text-lg font-bold">{item.ownerName}</Text>
                 <View className={`px-2 py-1 rounded-full ${item.status === 'PENDING' ? 'bg-yellow-50' :
-                    item.status === 'APPROVED' ? 'bg-green-50' : 'bg-red-50'
+                    (item.status === 'APPROVED' || item.status === 'ACTIVE') ? 'bg-green-50' : 'bg-red-50'
                     }`}>
                     <Text className={`text-xs font-bold ${item.status === 'PENDING' ? 'text-yellow-600' :
-                        item.status === 'APPROVED' ? 'text-green-600' : 'text-red-600'
+                        (item.status === 'APPROVED' || item.status === 'ACTIVE') ? 'text-green-600' : 'text-red-600'
                         }`}>{item.status}</Text>
                 </View>
             </View>
@@ -227,7 +199,7 @@ const CarOwnerApprovalScreen = ({ navigation }) => {
                 <Text className="text-secondary text-sm font-semibold">{item.vehicleNumber}</Text>
             </View>
 
-            {item.status === 'PENDING' && (
+            {(item.status === 'PENDING' || item.status === 'PENDING_APPROVAL') && (
                 <View className="flex-row mt-2 space-x-3">
                     <TouchableOpacity
                         onPress={(e) => { e.stopPropagation(); handleApprove(item); }}
@@ -282,14 +254,21 @@ const CarOwnerApprovalScreen = ({ navigation }) => {
                 </View>
             </Animated.View>
 
-            <ScrollView className="flex-1 p-4">
-                {getCurrentList().map(renderCard)}
-                {getCurrentList().length === 0 && (
-                    <View className="items-center mt-10">
-                        <Text className="text-secondary">No items found.</Text>
-                    </View>
-                )}
-            </ScrollView>
+            {isLoading ? (
+                <View className="flex-1 justify-center items-center">
+                    <ActivityIndicator size="large" color="#00C851" />
+                    <Text className="text-secondary mt-4">Loading approvals...</Text>
+                </View>
+            ) : (
+                <ScrollView className="flex-1 p-4">
+                    {getCurrentList().map(renderCard)}
+                    {getCurrentList().length === 0 && (
+                        <View className="items-center mt-10">
+                            <Text className="text-secondary">No items found.</Text>
+                        </View>
+                    )}
+                </ScrollView>
+            )}
 
             {/* Details Modal */}
             <Modal visible={showDetailsModal} transparent animationType="none" onRequestClose={closeDetailsModal}>
@@ -326,7 +305,7 @@ const CarOwnerApprovalScreen = ({ navigation }) => {
                                     </View>
                                 </View>
 
-                                {selectedItem.status === 'PENDING' && (
+                                {(selectedItem.status === 'PENDING' || selectedItem.status === 'PENDING_APPROVAL') && (
                                     <TouchableOpacity onPress={() => handleApprove(selectedItem)} className="bg-accent p-4 rounded-xl items-center mt-4">
                                         <Text className="text-white font-bold text-lg">Approve</Text>
                                     </TouchableOpacity>

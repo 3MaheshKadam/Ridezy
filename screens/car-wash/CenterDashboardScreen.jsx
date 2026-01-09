@@ -13,26 +13,28 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import '../../global.css';
+import { useUser } from '../../context/UserContext';
 
 const { width, height } = Dimensions.get('window');
 
 const CenterDashboardScreen = ({ navigation }) => {
+  const { user } = useUser();
   const [refreshing, setRefreshing] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState('today');
   const [centerStatus, setCenterStatus] = useState('open'); // open, closed, busy
-  
+
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideUpAnim = useRef(new Animated.Value(30)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
-  // Mock center data
+  // Center data from context or fallbacks
   const centerInfo = {
-    name: 'Premium Auto Spa',
-    address: 'Rajkamal Square, Amravati',
-    rating: 4.8,
-    totalReviews: 156,
-    subscriptionPlan: 'Premium',
-    subscriptionExpiry: '2024-12-31',
+    name: user?.name || user?.fullName || user?.full_name || 'My Car Wash',
+    address: user?.address || 'Location not set',
+    rating: user?.rating || 4.8,
+    totalReviews: user?.totalReviews || 156,
+    subscriptionPlan: user?.subscriptionPlan || 'Premium',
+    subscriptionExpiry: user?.subscriptionExpiry || '2024-12-31',
   };
 
   // Mock dashboard data for different periods
@@ -234,13 +236,13 @@ const CenterDashboardScreen = ({ navigation }) => {
     const statusCycle = { open: 'busy', busy: 'closed', closed: 'open' };
     const nextStatus = statusCycle[centerStatus];
     setCenterStatus(nextStatus);
-    
+
     const statusMessages = {
       open: 'Center is now open for bookings',
       busy: 'Center marked as busy - limited bookings',
       closed: 'Center is now closed',
     };
-    
+
     Alert.alert('Status Updated', statusMessages[nextStatus]);
   };
 
@@ -270,7 +272,7 @@ const CenterDashboardScreen = ({ navigation }) => {
   return (
     <View className="flex-1 bg-gray-50">
       <StatusBar barStyle="dark-content" backgroundColor="#f9fafb" />
-      
+
       <ScrollView
         className="flex-1"
         showsVerticalScrollIndicator={false}
@@ -306,7 +308,7 @@ const CenterDashboardScreen = ({ navigation }) => {
                   </Text>
                 </View>
               </View>
-              
+
               <TouchableOpacity
                 onPress={() => navigation.navigate('Notifications')}
                 className="w-12 h-12 bg-white rounded-2xl justify-center items-center shadow-sm shadow-black/5"
@@ -372,7 +374,7 @@ const CenterDashboardScreen = ({ navigation }) => {
                     </Text>
                   </View>
                 </View>
-                
+
                 <View className="bg-accent/10 px-3 py-1 rounded-full">
                   <Text className="text-accent text-sm font-semibold">
                     {centerInfo.subscriptionPlan}
@@ -397,16 +399,14 @@ const CenterDashboardScreen = ({ navigation }) => {
                 <TouchableOpacity
                   key={period.id}
                   onPress={() => setSelectedPeriod(period.id)}
-                  className={`px-6 py-3 rounded-2xl ${
-                    selectedPeriod === period.id
-                      ? 'bg-accent'
-                      : 'bg-white border border-gray-200'
-                  } shadow-sm shadow-black/5`}
+                  className={`px-6 py-3 rounded-2xl ${selectedPeriod === period.id
+                    ? 'bg-accent'
+                    : 'bg-white border border-gray-200'
+                    } shadow-sm shadow-black/5`}
                   activeOpacity={0.8}
                 >
-                  <Text className={`text-sm font-semibold ${
-                    selectedPeriod === period.id ? 'text-white' : 'text-secondary'
-                  }`}>
+                  <Text className={`text-sm font-semibold ${selectedPeriod === period.id ? 'text-white' : 'text-secondary'
+                    }`}>
                     {period.label}
                   </Text>
                 </TouchableOpacity>
@@ -426,7 +426,7 @@ const CenterDashboardScreen = ({ navigation }) => {
           <Text className="text-primary text-lg font-bold mb-4">
             Performance Overview
           </Text>
-          
+
           <View className="flex-row flex-wrap gap-3">
             {performanceMetrics.map((metric, index) => (
               <View
@@ -438,17 +438,15 @@ const CenterDashboardScreen = ({ navigation }) => {
                   <View className="w-8 h-8 bg-accent/10 rounded-full justify-center items-center">
                     <Ionicons name={metric.icon} size={16} color="#00C851" />
                   </View>
-                  <View className={`px-2 py-1 rounded-full ${
-                    metric.changeType === 'positive' ? 'bg-green-100' : 'bg-red-100'
-                  }`}>
-                    <Text className={`text-xs font-semibold ${
-                      metric.changeType === 'positive' ? 'text-green-600' : 'text-red-600'
+                  <View className={`px-2 py-1 rounded-full ${metric.changeType === 'positive' ? 'bg-green-100' : 'bg-red-100'
                     }`}>
+                    <Text className={`text-xs font-semibold ${metric.changeType === 'positive' ? 'text-green-600' : 'text-red-600'
+                      }`}>
                       {metric.change}
                     </Text>
                   </View>
                 </View>
-                
+
                 <Text className="text-primary text-xl font-bold mb-1">
                   {metric.value}
                 </Text>
@@ -471,7 +469,7 @@ const CenterDashboardScreen = ({ navigation }) => {
           <Text className="text-primary text-lg font-bold mb-4">
             Quick Actions
           </Text>
-          
+
           <View className="flex-row flex-wrap gap-3">
             {quickActions.map((action) => (
               <TouchableOpacity
@@ -481,7 +479,7 @@ const CenterDashboardScreen = ({ navigation }) => {
                 className="bg-white rounded-2xl p-4 shadow-sm shadow-black/5 border border-gray-100 items-center"
                 style={{ width: (width - 60) / 2 }}
               >
-                <View 
+                <View
                   className="w-12 h-12 rounded-2xl justify-center items-center mb-3"
                   style={{ backgroundColor: action.color + '20' }}
                 >
@@ -509,7 +507,7 @@ const CenterDashboardScreen = ({ navigation }) => {
           <Text className="text-primary text-lg font-bold mb-4">
             Service Summary
           </Text>
-          
+
           <View className="bg-white rounded-2xl shadow-sm shadow-black/5 border border-gray-100 overflow-hidden">
             <View className="p-4 border-b border-gray-100">
               <View className="flex-row items-center justify-between">
@@ -519,7 +517,7 @@ const CenterDashboardScreen = ({ navigation }) => {
                 </Text>
               </View>
             </View>
-            
+
             <View className="p-4 border-b border-gray-100">
               <View className="flex-row items-center justify-between">
                 <Text className="text-secondary text-sm">Completed Services</Text>
@@ -528,7 +526,7 @@ const CenterDashboardScreen = ({ navigation }) => {
                 </Text>
               </View>
             </View>
-            
+
             <View className="p-4 border-b border-gray-100">
               <View className="flex-row items-center justify-between">
                 <Text className="text-secondary text-sm">Pending Bookings</Text>
@@ -537,7 +535,7 @@ const CenterDashboardScreen = ({ navigation }) => {
                 </Text>
               </View>
             </View>
-            
+
             <View className="p-4">
               <View className="flex-row items-center justify-between">
                 <Text className="text-secondary text-sm">New Customers</Text>
@@ -574,26 +572,25 @@ const CenterDashboardScreen = ({ navigation }) => {
               </Text>
             </TouchableOpacity>
           </View>
-          
+
           <View className="bg-white rounded-2xl shadow-sm shadow-black/5 border border-gray-100 overflow-hidden">
             {recentActivities.map((activity, index) => (
               <View
                 key={activity.id}
-                className={`p-4 flex-row items-center ${
-                  index !== recentActivities.length - 1 ? 'border-b border-gray-100' : ''
-                }`}
+                className={`p-4 flex-row items-center ${index !== recentActivities.length - 1 ? 'border-b border-gray-100' : ''
+                  }`}
               >
-                <View 
+                <View
                   className="w-10 h-10 rounded-full justify-center items-center mr-3"
                   style={{ backgroundColor: activity.iconBg + '20' }}
                 >
-                  <Ionicons 
-                    name={activity.icon} 
-                    size={18} 
-                    color={activity.iconBg} 
+                  <Ionicons
+                    name={activity.icon}
+                    size={18}
+                    color={activity.iconBg}
                   />
                 </View>
-                
+
                 <View className="flex-1">
                   <Text className="text-primary text-base font-medium mb-1">
                     {activity.title}
@@ -602,7 +599,7 @@ const CenterDashboardScreen = ({ navigation }) => {
                     {activity.subtitle}
                   </Text>
                 </View>
-                
+
                 <Text className="text-secondary text-xs">
                   {activity.time}
                 </Text>

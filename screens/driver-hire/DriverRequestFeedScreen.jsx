@@ -51,42 +51,27 @@ const DriverRequestFeedScreen = ({ navigation }) => {
 
     const fetchRequests = async () => {
         try {
-            // Fetch trips with status 'SEARCHING'
-            // Ideally backend supports query params, e.g., /trips?status=SEARCHING
-            // For now, assuming GET /trips returns a list and we might need to filter client-side or backend does it.
-            // Assuming backend implementation aligns with requirements.
-            const response = await get(`${endpoints.trips.feed}?status=SEARCHING`);
+            const response = await get(`${endpoints.trips.feed}`);
+            const rawTrips = response.trips || [];
 
-            // If response.trips exists use it, otherwise assume response is array or handle accordingly
-            const trips = response.trips || (Array.isArray(response) ? response : []);
+            // Map backend fields to frontend expectations
+            const trips = rawTrips.map(t => ({
+                id: t._id,
+                pickupLocation: t.pickupLocation,
+                dropoffLocation: t.dropLocation, // Backend uses dropLocation
+                estimatedPrice: t.price,
+                date: t.startTime,
+                time: new Date(t.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                vehicleType: t.vehicleTypeRequested,
+                passengers: t.passengers,
+                distance: '5 km' // TODO: Calculate or fetch distance
+            }));
+
             setRequests(trips);
         } catch (error) {
             console.log('Error fetching requests:', error);
-            // Mock data for fallback/demo purposes if API fails or is empty
-            setRequests([
-                {
-                    id: '1',
-                    pickupLocation: 'Amravati Railway Station',
-                    dropoffLocation: 'Rajkamal Square',
-                    estimatedPrice: 250,
-                    distance: '5.2 km',
-                    date: new Date().toISOString(),
-                    time: 'Now',
-                    vehicleType: 'sedan',
-                    passengers: 2,
-                },
-                {
-                    id: '2',
-                    pickupLocation: 'Camp Area',
-                    dropoffLocation: 'Badnera',
-                    estimatedPrice: 380,
-                    distance: '8.5 km',
-                    date: new Date().toISOString(),
-                    time: '10:30 AM',
-                    vehicleType: 'suv',
-                    passengers: 4,
-                }
-            ]);
+            // Mock data removed/commented out for prod
+            setRequests([]);
         } finally {
             setIsLoading(false);
             setRefreshing(false);

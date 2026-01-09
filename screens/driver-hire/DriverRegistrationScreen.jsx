@@ -18,6 +18,8 @@ import '../../global.css';
 
 import { post } from '../../lib/api';
 import { endpoints } from '../../config/apiConfig';
+import * as DocumentPicker from 'expo-document-picker';
+import * as ImagePicker from 'expo-image-picker';
 // import { useUser } from '../../context/UserContext'; 
 
 const { width, height } = Dimensions.get('window');
@@ -223,23 +225,85 @@ const DriverRegistrationScreen = ({ navigation }) => {
     });
   };
 
-  const handleDocumentUpload = (type, method) => {
-    // In a real app, use DocumentPicker or ImagePicker here.
-    // For MVP, we'll confirm the 'upload' and set a mock URL.
-    const mockUrl = `https://ridezy-uploads.example.com/${type}_${Date.now()}.png`;
+  const handleDocumentUpload = async (type, method) => {
+    try {
+      let result;
 
-    setDocuments(prev => ({
-      ...prev,
-      [type]: {
-        uploaded: true,
-        verified: false,
-        fileName: `${type}_scan.jpg`,
-        uri: mockUrl,
+      if (method === 'camera') {
+        const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
+        if (permissionResult.granted === false) {
+          Alert.alert("Permission Refused", "You need to allow camera access to take photos.");
+          return;
+        }
+
+        result = await ImagePicker.launchCameraAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: true,
+          quality: 0.8,
+        });
+      } else {
+        // Gallery
+        const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (permissionResult.granted === false) {
+          Alert.alert("Permission Refused", "You need to allow gallery access to select photos.");
+          return;
+        }
+
+        result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.ForbidPDF, // Use DocumentPicker for PDFs if needed separate button
+          allowsEditing: true,
+          quality: 0.8,
+        });
       }
-    }));
 
-    closeDocumentModal();
-    Alert.alert('Success', 'Document uploaded successfully!');
+      if (result.canceled) return;
+
+      const file = result.assets[0];
+
+      // Upload to backend
+      const formData = new FormData();
+
+      // ImagePicker returns a uri, we need to infer name/type
+      const localUri = file.uri;
+      const filename = localUri.split('/').pop();
+      const match = /\.(\w+)$/.exec(filename);
+      const fileType = match ? `image/${match[1]}` : `image`;
+
+      formData.append('file', {
+        uri: localUri,
+        name: filename,
+        type: fileType,
+      });
+
+      setIsLoading(true);
+
+      console.log('Uploading document...', filename);
+      const response = await post(endpoints.common.upload, formData);
+      console.log('Upload response:', response);
+
+      const fileUrl = response.url || response.fileUrl || response.secure_url;
+
+      if (!fileUrl) throw new Error('Upload failed - No URL returned');
+
+      setDocuments(prev => ({
+        ...prev,
+        [type]: {
+          uploaded: true,
+          verified: false,
+          fileName: filename,
+          uri: fileUrl,
+        }
+      }));
+
+      closeDocumentModal();
+      Alert.alert('Success', 'Document uploaded successfully!');
+
+    } catch (error) {
+      console.error('Document Upload Error:', error);
+      Alert.alert('Upload Failed', 'Could not upload document. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleSubmit = async () => {
@@ -722,7 +786,7 @@ const DriverRegistrationScreen = ({ navigation }) => {
           opacity: fadeAnim,
           transform: [{ translateY: slideUpAnim }],
         }}
-        className="bg-white border-t border-gray-200 px-6 py-4"
+        className="bg-white border-t border-gray-200 px-6 py-4 mb-6"
       >
         <TouchableOpacity
           onPress={handleNext}

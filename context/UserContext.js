@@ -1,6 +1,9 @@
 "use client"
 
-import { createContext, useContext, useState } from "react"
+import { createContext, useContext, useState, useEffect } from "react"
+import * as SecureStore from 'expo-secure-store';
+import { get } from '../lib/api';
+import { endpoints } from '../config/apiConfig';
 
 const UserContext = createContext()
 
@@ -43,12 +46,40 @@ export const UserProvider = ({ children }) => {
     },
   ])
 
-  const login = (userData) => {
+  useEffect(() => {
+    checkUser();
+  }, []);
+
+  const checkUser = async () => {
+    try {
+      const token = await SecureStore.getItemAsync('userToken');
+      if (token) {
+        // Fetch user profile
+        const userData = await get(endpoints.auth.me);
+        if (userData) {
+          setUser(userData);
+          setIsAuthenticated(true);
+        }
+      }
+    } catch (error) {
+      console.log('User restoration failed:', error);
+      // Optional: Clear invalid token
+      // await SecureStore.deleteItemAsync('userToken');
+    }
+  };
+
+  const login = (userData, token) => {
+    console.log('UserContext Login:', JSON.stringify(userData, null, 2));
+    if (userData?.vehicleStatus) console.log('User Vehicle Status:', userData.vehicleStatus);
     setUser(userData)
     setIsAuthenticated(true)
+    if (token) {
+      SecureStore.setItemAsync('userToken', token);
+    }
   }
 
-  const logout = () => {
+  const logout = async () => {
+    await SecureStore.deleteItemAsync('userToken');
     setUser(null)
     setIsAuthenticated(false)
     setCurrentBooking(null)

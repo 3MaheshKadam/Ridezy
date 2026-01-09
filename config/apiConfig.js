@@ -1,10 +1,13 @@
-export const API_BASE_URL = 'http://10.93.230.9:3000/api';
+export const API_BASE_URL = 'http://192.168.29.236:3000/api';
 
 export const endpoints = {
     auth: {
         login: '/auth/login',
         register: '/auth/register',
         me: '/auth/me',
+    },
+    common: {
+        upload: '/upload',
     },
     onboarding: {
         driver: '/onboarding/driver',
@@ -14,6 +17,7 @@ export const endpoints = {
     admin: {
         approvals: '/admin/approvals',
         approve: '/admin/approve',
+        stats: '/admin/stats',
     },
     trips: {
         create: '/trips',

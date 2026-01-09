@@ -14,10 +14,12 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import '../../global.css';
+import { useUser } from '../../context/UserContext';
 
 const { width, height } = Dimensions.get('window');
 
 const DriverDashboardScreen = ({ navigation }) => {
+  const { user } = useUser();
   const [isOnline, setIsOnline] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState('today');
   const [refreshing, setRefreshing] = useState(false);
@@ -27,16 +29,16 @@ const DriverDashboardScreen = ({ navigation }) => {
   const slideUpAnim = useRef(new Animated.Value(30)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
-  // Mock driver data
+  // Driver data from context or fallbacks
   const driverProfile = {
-    name: 'Rajesh Kumar',
-    avatar: '👨‍💼',
-    rating: 4.8,
-    totalTrips: 342,
-    memberSince: '2023',
-    vehicleNumber: 'MH 27 AB 1234',
-    vehicleName: 'Honda City',
-    verificationStatus: 'verified',
+    name: user?.name || user?.fullName || user?.full_name || 'Driver',
+    avatar: user?.avatar || '👨‍💼', // TODO: Use real avatar URL if available
+    rating: user?.rating || 4.8,
+    totalTrips: user?.totalTrips || 342,
+    memberSince: user?.createdAt ? new Date(user.createdAt).getFullYear().toString() : '2023',
+    vehicleNumber: user?.vehicle?.number || 'MH 27 AB 1234',
+    vehicleName: user?.vehicle?.name || 'Honda City',
+    verificationStatus: user?.status === 'ACTIVE' ? 'verified' : 'pending',
   };
 
   // Performance data for different periods
@@ -433,8 +435,8 @@ const DriverDashboardScreen = ({ navigation }) => {
                   key={period.id}
                   onPress={() => setSelectedPeriod(period.id)}
                   className={`px-6 py-3 rounded-2xl ${selectedPeriod === period.id
-                      ? 'bg-accent'
-                      : 'bg-white border border-gray-200'
+                    ? 'bg-accent'
+                    : 'bg-white border border-gray-200'
                     } shadow-sm shadow-black/5`}
                   activeOpacity={0.8}
                 >

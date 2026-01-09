@@ -8,17 +8,37 @@ import {
   Dimensions,
   StatusBar,
   RefreshControl,
+  Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import '../../global.css';
+import { get } from '../../lib/api';
+import { endpoints } from '../../config/apiConfig';
 
 const { width, height } = Dimensions.get('window');
 
+import { useUser } from '../../context/UserContext';
+
 const HomeScreen = ({ navigation }) => {
-  // Mock user data - replace with actual user context/AsyncStorage
-  const [userRole, setUserRole] = useState('carOwner'); // carOwner, driver, carWashCenter, admin
-  const [userName, setUserName] = useState('Alex Johnson');
+  const { user, updateProfile } = useUser();
+
+  console.log('HomeScreen: Current User Context:', JSON.stringify(user, null, 2));
+
+  // Map backend roles to frontend roles
+  const getFrontendRole = (backendRole) => {
+    switch (backendRole) {
+      case 'OWNER': return 'carOwner';
+      case 'DRIVER': return 'driver';
+      case 'CENTER': return 'carWashCenter';
+      case 'ADMIN': return 'admin';
+      default: return 'carOwner'; // Fallback
+    }
+  };
+
+  const userRole = getFrontendRole(user?.role);
+  const userName = user?.name || user?.fullName || user?.full_name || 'User';
+
   const [isDriverOnline, setIsDriverOnline] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [stats, setStats] = useState({
@@ -34,7 +54,7 @@ const HomeScreen = ({ navigation }) => {
 
   useEffect(() => {
     startAnimations();
-    loadUserData();
+    // loadUserData(); // Data is now coming from Context
   }, []);
 
   const startAnimations = () => {
@@ -54,10 +74,14 @@ const HomeScreen = ({ navigation }) => {
   };
 
   const loadUserData = async () => {
-    // TODO: Load user data from AsyncStorage/API
-    // const userData = await getUserData();
-    // setUserRole(userData.role);
-    // setUserName(userData.name);
+    try {
+      const response = await get(endpoints.auth.me);
+      if (response) {
+        updateProfile(response);
+      }
+    } catch (error) {
+      console.error('Failed to refresh user data:', error);
+    }
   };
 
   const onRefresh = async () => {
@@ -96,7 +120,40 @@ const HomeScreen = ({ navigation }) => {
         icon: 'person',
         iconLibrary: 'Ionicons',
         color: '#1A1B23',
-        onPress: () => navigation.navigate('TripRequest'),
+        onPress: () => {
+          // Check for any approval status (User or Vehicle)
+          // Backend uses 'ACTIVE' for approved users
+          const isUserApproved = user?.status === 'APPROVED' || user?.status === 'ACTIVE';
+
+          // Vehicles might have 'isApproved' boolean or 'status' string depending on context/updates
+          const isVehicleApproved =
+            user?.vehicleStatus === 'APPROVED' ||
+            user?.vehicleStatus === 'ACTIVE' ||
+            user?.vehicles?.some(v => v.status === 'APPROVED' || v.status === 'ACTIVE' || v.isApproved === true);
+
+          if (!isUserApproved && !isVehicleApproved) {
+            // Check if pending
+            const isPending = user?.status === 'PENDING' ||
+              user?.status === 'PENDING_APPROVAL' ||
+              user?.vehicleStatus === 'PENDING' ||
+              user?.vehicles?.some(v => v.status === 'PENDING');
+
+            if (isPending) {
+              Alert.alert('Account Under Review', 'Your account or vehicle is currently pending admin approval. You will be notified once approved.');
+            } else {
+              Alert.alert(
+                'Complete Registration',
+                'You need to register your vehicle and upload documents to hire drivers.',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Register Now', onPress: () => navigation.navigate('CarOwnerRegistration') }
+                ]
+              );
+            }
+            return;
+          }
+          navigation.navigate('TripRequest');
+        },
       },
     ];
 
