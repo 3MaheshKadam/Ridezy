@@ -16,12 +16,15 @@ import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import '../../global.css';
 import { post } from '../../lib/api';
 import { endpoints } from '../../config/apiConfig';
+import { searchLocations, calculateDistance } from '../../lib/locationService';
+import * as Location from 'expo-location';
 
 const { width, height } = Dimensions.get('window');
 
+
 const TripRequestScreen = ({ navigation }) => {
-  const [pickupLocation, setPickupLocation] = useState('');
-  const [dropoffLocation, setDropoffLocation] = useState('');
+  const [pickupLocation, setPickupLocation] = useState(null); // Changed to object
+  const [dropoffLocation, setDropoffLocation] = useState(null); // Changed to object
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [selectedTime, setSelectedTime] = useState('');
   const [selectedVehicle, setSelectedVehicle] = useState('sedan');
@@ -33,9 +36,15 @@ const TripRequestScreen = ({ navigation }) => {
   const [estimatedPrice, setEstimatedPrice] = useState(0);
   const [searchingDrivers, setSearchingDrivers] = useState(false);
 
+  // New state for search
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
+
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideUpAnim = useRef(new Animated.Value(30)).current;
   const modalSlideAnim = useRef(new Animated.Value(height)).current;
+  const searchTimeout = useRef(null);
 
   // Vehicle options
   const vehicleOptions = [
@@ -74,14 +83,11 @@ const TripRequestScreen = ({ navigation }) => {
     },
   ];
 
-  // Popular locations
+  // Popular locations (Static fallback)
   const popularLocations = [
-    { id: '1', name: 'Amravati Airport', address: 'Belora, Amravati', icon: 'airplane' },
-    { id: '2', name: 'Amravati Railway Station', address: 'Station Road, Amravati', icon: 'train' },
-    { id: '3', name: 'Rajkamal Square', address: 'Rajkamal Chowk, Amravati', icon: 'business' },
-    { id: '4', name: 'Camp Area', address: 'Camp Road, Amravati', icon: 'location' },
-    { id: '5', name: 'Badnera', address: 'Badnera Road, Amravati', icon: 'home' },
-    { id: '6', name: 'Kathora', address: 'Kathora Road, Amravati', icon: 'location' },
+    { id: '1', name: 'Amravati Airport', address: 'Belora, Amravati', latitude: 20.8320, longitude: 77.7380, icon: 'airplane' },
+    { id: '2', name: 'Amravati Railway Station', address: 'Station Road, Amravati', latitude: 20.9330, longitude: 77.7554, icon: 'train' },
+    { id: '3', name: 'Rajkamal Square', address: 'Rajkamal Chowk, Amravati', latitude: 20.9320, longitude: 77.7520, icon: 'business' },
   ];
 
   // Time slots for scheduled rides
@@ -93,6 +99,9 @@ const TripRequestScreen = ({ navigation }) => {
 
   useEffect(() => {
     startAnimations();
+  }, []);
+
+  useEffect(() => {
     calculateEstimatedPrice();
   }, [pickupLocation, dropoffLocation, selectedVehicle, tripType]);
 
@@ -118,17 +127,31 @@ const TripRequestScreen = ({ navigation }) => {
       return;
     }
 
-    // Mock distance calculation (in real app, use Google Maps API)
-    const mockDistance = Math.floor(Math.random() * 20) + 5; // 5-25 km
+    // Real distance calculation
+    const distance = calculateDistance(
+      pickupLocation.latitude,
+      pickupLocation.longitude,
+      dropoffLocation.latitude,
+      dropoffLocation.longitude
+    );
+
+    // Minimum 2km charge
+    const chargeableDistance = Math.max(distance, 2);
+
     const vehicle = vehicleOptions.find(v => v.id === selectedVehicle);
-    const basePrice = mockDistance * vehicle.pricePerKm;
+    const basePrice = chargeableDistance * vehicle.pricePerKm;
     const multiplier = tripType === 'roundtrip' ? 1.8 : 1;
 
-    setEstimatedPrice(Math.round(basePrice * multiplier));
+    // Minimum fare logic (e.g., base fare ₹50)
+    const total = Math.max(50, Math.round(basePrice * multiplier));
+
+    setEstimatedPrice(total);
   };
 
   const openLocationModal = (type) => {
     setLocationInputType(type);
+    setSearchQuery('');
+    setSearchResults([]);
     setShowLocationModal(true);
 
     Animated.timing(modalSlideAnim, {
@@ -148,11 +171,43 @@ const TripRequestScreen = ({ navigation }) => {
     });
   };
 
+  const handleSearch = (text) => {
+    setSearchQuery(text);
+
+    if (searchTimeout.current) clearTimeout(searchTimeout.current);
+
+    if (text.length < 3) {
+      setSearchResults([]);
+      return;
+    }
+
+    setIsSearching(true);
+    searchTimeout.current = setTimeout(async () => {
+      try {
+        // Use Pickup Location as bias if available, otherwise undefined
+        const bias = pickupLocation ? { lat: pickupLocation.latitude, lng: pickupLocation.longitude } : null;
+        const results = await searchLocations(text, bias);
+        setSearchResults(results);
+      } catch (error) {
+        console.error("Search failed", error);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 500); // 500ms debounce
+  };
+
   const selectLocation = (location) => {
+    const locationData = {
+      name: location.name,
+      address: location.address,
+      latitude: location.latitude,
+      longitude: location.longitude
+    };
+
     if (locationInputType === 'pickup') {
-      setPickupLocation(location.name);
+      setPickupLocation(locationData);
     } else {
-      setDropoffLocation(location.name);
+      setDropoffLocation(locationData);
     }
     closeLocationModal();
   };
@@ -161,6 +216,43 @@ const TripRequestScreen = ({ navigation }) => {
     const temp = pickupLocation;
     setPickupLocation(dropoffLocation);
     setDropoffLocation(temp);
+  };
+
+  const getCurrentLocation = async () => {
+    try {
+      setIsSearching(true);
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Denied', 'Allow location access to use this feature.');
+        setIsSearching(false);
+        return;
+      }
+
+      const location = await Location.getCurrentPositionAsync({});
+      const { latitude, longitude } = location.coords;
+
+      // Reverse Geocode
+      const addressResponse = await Location.reverseGeocodeAsync({ latitude, longitude });
+
+      if (addressResponse.length > 0) {
+        const addr = addressResponse[0];
+        const formattedAddress = `${addr.name || ''} ${addr.street || ''}, ${addr.city || ''}`.trim();
+
+        const locationData = {
+          name: addr.name || addr.street || "Current Location",
+          address: formattedAddress,
+          latitude,
+          longitude
+        };
+
+        selectLocation(locationData);
+      }
+    } catch (error) {
+      console.log("Error getting location", error);
+      Alert.alert("Error", "Could not fetch location");
+    } finally {
+      setIsSearching(false);
+    }
   };
 
   const handleFindDriver = async () => {
@@ -178,8 +270,18 @@ const TripRequestScreen = ({ navigation }) => {
 
     try {
       const tripData = {
-        pickupLocation,
-        dropoffLocation,
+        pickupLocation: pickupLocation.name, // Sending string for compatibility
+        pickupAddress: pickupLocation.address, // Adding detailed address
+        pickupCoordinates: {
+          lat: pickupLocation.latitude,
+          lng: pickupLocation.longitude
+        },
+        dropoffLocation: dropoffLocation.name,
+        dropoffAddress: dropoffLocation.address,
+        dropoffCoordinates: {
+          lat: dropoffLocation.latitude,
+          lng: dropoffLocation.longitude
+        },
         date: selectedDate.toISOString(),
         time: selectedTime,
         vehicleType: selectedVehicle,
@@ -195,7 +297,7 @@ const TripRequestScreen = ({ navigation }) => {
 
       if (response && response.trip) {
         // Navigate to tracking screen
-        navigation.navigate('TripTracking', {
+        navigation.navigate('OwnerTripTracking', {
           tripId: response.trip._id,
           tripDetails: tripData
         });
@@ -290,9 +392,14 @@ const TripRequestScreen = ({ navigation }) => {
                 <Text className="text-secondary text-xs font-medium mb-1">
                   PICKUP LOCATION
                 </Text>
-                <Text className="text-primary text-base font-medium">
-                  {pickupLocation || 'Select pickup location'}
+                <Text className="text-primary text-base font-medium" numberOfLines={1}>
+                  {pickupLocation ? pickupLocation.name : 'Select pickup location'}
                 </Text>
+                {pickupLocation && (
+                  <Text className="text-secondary text-xs mt-1" numberOfLines={1}>
+                    {pickupLocation.address}
+                  </Text>
+                )}
               </View>
               <Ionicons name="chevron-forward" size={20} color="#6C757D" />
             </View>
@@ -321,9 +428,14 @@ const TripRequestScreen = ({ navigation }) => {
                 <Text className="text-secondary text-xs font-medium mb-1">
                   DROP-OFF LOCATION
                 </Text>
-                <Text className="text-primary text-base font-medium">
-                  {dropoffLocation || 'Select drop-off location'}
+                <Text className="text-primary text-base font-medium" numberOfLines={1}>
+                  {dropoffLocation ? dropoffLocation.name : 'Select drop-off location'}
                 </Text>
+                {dropoffLocation && (
+                  <Text className="text-secondary text-xs mt-1" numberOfLines={1}>
+                    {dropoffLocation.address}
+                  </Text>
+                )}
               </View>
               <Ionicons name="chevron-forward" size={20} color="#6C757D" />
             </View>
@@ -668,7 +780,7 @@ const TripRequestScreen = ({ navigation }) => {
             style={{
               transform: [{ translateY: modalSlideAnim }],
             }}
-            className="bg-white rounded-t-3xl p-6 max-h-[80%]"
+            className="bg-white rounded-t-3xl p-6 h-[85%]" // Increased height
           >
             <View className="items-center mb-6">
               <View className="w-12 h-1 bg-gray-300 rounded-full mb-4" />
@@ -678,42 +790,98 @@ const TripRequestScreen = ({ navigation }) => {
             </View>
 
             {/* Search Input */}
-            <View className="bg-gray-50 rounded-2xl p-4 mb-6 flex-row items-center">
+            <View className="bg-gray-50 rounded-2xl p-4 mb-4 flex-row items-center border border-gray-100">
               <Ionicons name="search" size={20} color="#6C757D" />
               <TextInput
-                placeholder="Search for a location..."
+                placeholder="Search city, area or street..."
                 placeholderTextColor="#6C757D"
                 className="flex-1 ml-3 text-primary text-base"
+                value={searchQuery}
+                onChangeText={handleSearch}
+                autoFocus
               />
+              {isSearching && <View className="w-4 h-4 border-2 border-accent border-t-transparent rounded-full animate-spin" />}
             </View>
 
-            {/* Popular Locations */}
-            <Text className="text-primary text-base font-semibold mb-4">
-              Popular Destinations
-            </Text>
+            {/* Current Location Button */}
+            <TouchableOpacity
+              onPress={getCurrentLocation}
+              className="flex-row items-center p-4 bg-blue-50 rounded-xl mb-4 border border-blue-100"
+            >
+              <View className="w-10 h-10 bg-blue-100 rounded-full justify-center items-center mr-3">
+                <Ionicons name="navigate" size={20} color="#3B82F6" />
+              </View>
+              <View>
+                <Text className="text-blue-600 font-bold text-base">Use Current Location</Text>
+                <Text className="text-blue-400 text-xs">Tap to set precise location</Text>
+              </View>
+            </TouchableOpacity>
 
             <ScrollView showsVerticalScrollIndicator={false}>
-              {popularLocations.map((location) => (
-                <TouchableOpacity
-                  key={location.id}
-                  onPress={() => selectLocation(location)}
-                  className="flex-row items-center p-4 border-b border-gray-100"
-                  activeOpacity={0.7}
-                >
-                  <View className="w-10 h-10 bg-accent/10 rounded-full justify-center items-center mr-3">
-                    <Ionicons name={location.icon} size={18} color="#00C851" />
-                  </View>
-                  <View className="flex-1">
-                    <Text className="text-primary text-base font-medium mb-1">
-                      {location.name}
-                    </Text>
-                    <Text className="text-secondary text-sm">
-                      {location.address}
-                    </Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={20} color="#6C757D" />
-                </TouchableOpacity>
-              ))}
+              {/* Search Results */}
+              {searchResults.length > 0 ? (
+                <View className="mb-6">
+                  <Text className="text-secondary text-sm font-semibold mb-2 uppercase tracking-wider">
+                    Search Results
+                  </Text>
+                  {searchResults.map((location) => (
+                    <TouchableOpacity
+                      key={location.id}
+                      onPress={() => selectLocation(location)}
+                      className="flex-row items-center p-4 border-b border-gray-100"
+                      activeOpacity={0.7}
+                    >
+                      <View className="w-10 h-10 bg-accent/10 rounded-full justify-center items-center mr-3">
+                        <Ionicons name="location" size={18} color="#00C851" />
+                      </View>
+                      <View className="flex-1">
+                        <Text className="text-primary text-base font-medium mb-1">
+                          {location.name}
+                        </Text>
+                        <Text className="text-secondary text-sm">
+                          {location.address}
+                        </Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={20} color="#6C757D" />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              ) : searchQuery.length > 0 && !isSearching ? (
+                <View className="p-8 items-center">
+                  <Text className="text-secondary">No locations found</Text>
+                </View>
+              ) : null}
+
+              {/* Popular Locations (Only show if no search query) */}
+              {searchQuery.length === 0 && (
+                <View>
+                  <Text className="text-primary text-base font-semibold mb-4">
+                    Popular Destinations
+                  </Text>
+
+                  {popularLocations.map((location) => (
+                    <TouchableOpacity
+                      key={location.id}
+                      onPress={() => selectLocation(location)}
+                      className="flex-row items-center p-4 border-b border-gray-100"
+                      activeOpacity={0.7}
+                    >
+                      <View className="w-10 h-10 bg-accent/10 rounded-full justify-center items-center mr-3">
+                        <Ionicons name={location.icon} size={18} color="#00C851" />
+                      </View>
+                      <View className="flex-1">
+                        <Text className="text-primary text-base font-medium mb-1">
+                          {location.name}
+                        </Text>
+                        <Text className="text-secondary text-sm">
+                          {location.address}
+                        </Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={20} color="#6C757D" />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
             </ScrollView>
           </Animated.View>
         </View>

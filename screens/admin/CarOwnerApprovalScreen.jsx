@@ -11,6 +11,8 @@ import {
     Modal,
     TextInput,
     ActivityIndicator,
+    Image,
+    Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import '../../global.css';
@@ -294,14 +296,25 @@ const CarOwnerApprovalScreen = ({ navigation }) => {
                                 <View className="bg-gray-50 p-4 rounded-xl mb-4">
                                     <Text className="text-secondary text-sm mb-1">Documents</Text>
                                     <View className="flex-row justify-between mt-2">
-                                        <TouchableOpacity className="flex-row items-center">
-                                            <Ionicons name="document-text" size={20} color="#00C851" />
-                                            <Text className="ml-2 text-primary font-medium">RC Document</Text>
-                                        </TouchableOpacity>
-                                        <TouchableOpacity className="flex-row items-center">
-                                            <Ionicons name="shield-checkmark" size={20} color="#00C851" />
-                                            <Text className="ml-2 text-primary font-medium">Insurance</Text>
-                                        </TouchableOpacity>
+                                        {selectedItem.rcDocumentUrl ? (
+                                            <TouchableOpacity
+                                                onPress={() => Linking.openURL(selectedItem.rcDocumentUrl)}
+                                                className="flex-row items-center"
+                                            >
+                                                <Ionicons name="document-text" size={20} color="#00C851" />
+                                                <Text className="ml-2 text-primary font-medium">RC Document</Text>
+                                            </TouchableOpacity>
+                                        ) : <Text className="text-gray-400">No RC</Text>}
+
+                                        {selectedItem.insuranceUrl ? (
+                                            <TouchableOpacity
+                                                onPress={() => Linking.openURL(selectedItem.insuranceUrl)}
+                                                className="flex-row items-center"
+                                            >
+                                                <Ionicons name="shield-checkmark" size={20} color="#00C851" />
+                                                <Text className="ml-2 text-primary font-medium">Insurance</Text>
+                                            </TouchableOpacity>
+                                        ) : <Text className="text-gray-400">No Insurance</Text>}
                                     </View>
                                 </View>
 

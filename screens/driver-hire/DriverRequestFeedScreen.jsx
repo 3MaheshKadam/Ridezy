@@ -58,7 +58,9 @@ const DriverRequestFeedScreen = ({ navigation }) => {
             const trips = rawTrips.map(t => ({
                 id: t._id,
                 pickupLocation: t.pickupLocation,
-                dropoffLocation: t.dropLocation, // Backend uses dropLocation
+                pickupCoordinates: t.pickupCoords, // Crucial for Navigation
+                dropoffLocation: t.dropLocation,
+                dropoffCoordinates: t.dropoffCoords, // Crucial for Navigation
                 estimatedPrice: t.price,
                 date: t.startTime,
                 time: new Date(t.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -101,7 +103,7 @@ const DriverRequestFeedScreen = ({ navigation }) => {
                             Alert.alert('Success', 'Trip accepted successfully!', [
                                 {
                                     text: 'Go to Trip',
-                                    onPress: () => navigation.navigate('TripTracking', { tripId: trip.id, tripDetails: trip })
+                                    onPress: () => navigation.navigate('DriverTripTracking', { tripId: trip.id, tripDetails: trip })
                                 }
                             ]);
                         } catch (error) {

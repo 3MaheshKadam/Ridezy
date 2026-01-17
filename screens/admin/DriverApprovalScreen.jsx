@@ -10,6 +10,8 @@ import {
   Alert,
   Modal,
   TextInput,
+  Image,
+  Linking,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
@@ -686,6 +688,7 @@ const DriverApprovalScreen = ({ navigation }) => {
                             </Text>
                           </View>
                           <TouchableOpacity
+                            onPress={() => Linking.openURL(value)}
                             className="bg-purple-50 px-3 py-1 rounded-full"
                             activeOpacity={0.8}
                           >

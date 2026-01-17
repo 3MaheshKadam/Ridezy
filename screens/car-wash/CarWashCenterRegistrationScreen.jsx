@@ -9,6 +9,9 @@ import {
     Dimensions,
     StatusBar,
     Alert,
+    Modal,
+    FlatList,
+    ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,6 +21,8 @@ import '../../global.css';
 import { post } from '../../lib/api';
 import { endpoints } from '../../config/apiConfig';
 import { useUser } from '../../context/UserContext';
+import { searchLocations, reverseGeocode } from '../../lib/locationService';
+import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
 
 const { width, height } = Dimensions.get('window');
 
@@ -32,6 +37,14 @@ const CarWashCenterRegistrationScreen = ({ navigation }) => {
         shopLicense: null,
     });
     const [isLoading, setIsLoading] = useState(false);
+
+    // Location Search State
+    const [showLocationModal, setShowLocationModal] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [searchResults, setSearchResults] = useState([]);
+    const [isSearching, setIsSearching] = useState(false);
+    const [selectedLocation, setSelectedLocation] = useState(null);
+    const searchTimeout = useRef(null);
 
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const slideUpAnim = useRef(new Animated.Value(30)).current;
@@ -72,7 +85,7 @@ const CarWashCenterRegistrationScreen = ({ navigation }) => {
 
     const validateStep1 = () => {
         if (!formData.businessName || !formData.address || !formData.contactPhone) {
-            Alert.alert('Missing Info', 'Please fill in all business details.');
+            Alert.alert('Missing Info', 'Please fill in all business details and select a location.');
             return false;
         }
         return true;
@@ -86,15 +99,49 @@ const CarWashCenterRegistrationScreen = ({ navigation }) => {
         return true;
     };
 
+    const handleLocationSearch = (text) => {
+        setSearchQuery(text);
+        if (searchTimeout.current) clearTimeout(searchTimeout.current);
+
+        if (text.length > 2) {
+            setIsSearching(true);
+            searchTimeout.current = setTimeout(async () => {
+                const results = await searchLocations(text);
+                setSearchResults(results);
+                setIsSearching(false);
+            }, 500);
+        } else {
+            setSearchResults([]);
+            setIsSearching(false);
+        }
+    };
+
+    const handleSelectLocation = (location) => {
+        setSelectedLocation(location);
+        setFormData(prev => ({ ...prev, address: location.address }));
+        setShowLocationModal(false);
+        setSearchQuery('');
+        setSearchResults([]);
+    };
+
     const handleSubmit = async () => {
         if (!validateStep2()) return;
 
         setIsLoading(true);
         try {
-            // Mock file upload handling
+            // Mock file upload handling (in real app, upload doc first and get URL)
             const payload = {
                 businessName: formData.businessName,
-                location: formData.address, // Simplifying address to location string for MVP
+                // Send structured location object supported by backend
+                location: selectedLocation ? {
+                    lat: selectedLocation.latitude,
+                    lng: selectedLocation.longitude,
+                    address: selectedLocation.address
+                } : {
+                    lat: 0,
+                    lng: 0,
+                    address: formData.address // Fallback
+                },
                 contactPhone: formData.contactPhone,
                 registrationDocUrl: 'https://example.com/shop_act_mock.pdf', // Mock URL
             };
@@ -124,9 +171,86 @@ const CarWashCenterRegistrationScreen = ({ navigation }) => {
         }
     };
 
+    // Map State
+    const [mapRegion, setMapRegion] = useState({
+        latitude: 18.5204,
+        longitude: 73.8567,
+        latitudeDelta: 0.05,
+        longitudeDelta: 0.05,
+    });
+
+    const handleMapPress = async (e) => {
+        const { latitude, longitude } = e.nativeEvent.coordinate;
+        setSelectedLocation({ latitude, longitude });
+
+        // Auto-fetch address
+        const data = await reverseGeocode(latitude, longitude);
+        if (data && data.address) {
+            setSelectedLocation(prev => ({ ...prev, address: data.address }));
+            setFormData(prev => ({ ...prev, address: data.address }));
+        }
+    };
+
+    const confirmLocation = () => {
+        if (selectedLocation) {
+            setFormData(prev => ({ ...prev, address: selectedLocation.address || "Selected Location" }));
+            setShowLocationModal(false);
+        }
+    };
+
+    const renderLocationModal = () => (
+        <Modal
+            animationType="slide"
+            visible={showLocationModal}
+            onRequestClose={() => setShowLocationModal(false)}
+        >
+            <View className="flex-1 bg-white">
+                <View className="absolute top-12 left-4 z-10 flex-row items-center">
+                    <TouchableOpacity
+                        onPress={() => setShowLocationModal(false)}
+                        className="bg-white p-3 rounded-full shadow-lg mr-4"
+                    >
+                        <Ionicons name="close" size={24} color="#1A1B23" />
+                    </TouchableOpacity>
+                    <View className="bg-white px-4 py-2 rounded-xl shadow-lg flex-1 mr-4">
+                        <Text className="text-sm font-bold text-primary" numberOfLines={1}>
+                            {selectedLocation?.address || "Tap map to select location"}
+                        </Text>
+                    </View>
+                </View>
+
+                <MapView
+                    provider={PROVIDER_DEFAULT}
+                    style={{ flex: 1 }}
+                    initialRegion={mapRegion}
+                    onPress={handleMapPress}
+                >
+                    {selectedLocation && (
+                        <Marker coordinate={selectedLocation}>
+                            <View className="bg-green-500 w-6 h-6 rounded-full border-2 border-white shadow-md items-center justify-center">
+                                <View className="bg-white w-2 h-2 rounded-full" />
+                            </View>
+                        </Marker>
+                    )}
+                </MapView>
+
+                <View className="absolute bottom-8 left-6 right-6">
+                    <TouchableOpacity
+                        onPress={confirmLocation}
+                        disabled={!selectedLocation}
+                        className={`p-4 rounded-xl items-center shadow-lg ${selectedLocation ? 'bg-accent' : 'bg-gray-400'}`}
+                    >
+                        <Text className="text-white font-bold text-lg">Confirm Location</Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
+        </Modal>
+    );
+
     return (
         <View className="flex-1 bg-gray-50">
             <StatusBar barStyle="dark-content" backgroundColor="#f9fafb" />
+            {renderLocationModal()}
 
             {/* Header */}
             <Animated.View
@@ -151,16 +275,21 @@ const CarWashCenterRegistrationScreen = ({ navigation }) => {
                                 placeholder="Enter Business Name"
                             />
                         </View>
+
+                        {/* Enhanced Location Selection */}
                         <View className="mb-4">
-                            <Text className="text-secondary mb-2">Address / Location</Text>
-                            <TextInput
-                                value={formData.address}
-                                onChangeText={t => handleInputChange('address', t)}
-                                className="bg-white p-4 rounded-xl border border-gray-200"
-                                placeholder="Enter Shop Address"
-                                multiline
-                            />
+                            <Text className="text-secondary mb-2">Shop Location</Text>
+                            <TouchableOpacity
+                                onPress={() => setShowLocationModal(true)}
+                                className="bg-white p-4 rounded-xl border border-gray-200 flex-row items-center justify-between"
+                            >
+                                <Text className={formData.address ? "text-primary flex-1 mr-2" : "text-gray-400 flex-1 mr-2"}>
+                                    {formData.address || "Search & Select Shop Location"}
+                                </Text>
+                                <Ionicons name="map" size={20} color="#6C757D" />
+                            </TouchableOpacity>
                         </View>
+
                         <View className="mb-6">
                             <Text className="text-secondary mb-2">Contact Phone</Text>
                             <TextInput

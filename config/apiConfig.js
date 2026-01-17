@@ -9,6 +9,9 @@ export const endpoints = {
     common: {
         upload: '/upload',
     },
+    vehicles: {
+        list: '/vehicles',
+    },
     onboarding: {
         driver: '/onboarding/driver',
         ownerVehicle: '/onboarding/owner/vehicle',
@@ -18,6 +21,7 @@ export const endpoints = {
         approvals: '/admin/approvals',
         approve: '/admin/approve',
         stats: '/admin/stats',
+        plans: '/admin/plans',
     },
     trips: {
         create: '/trips',
@@ -27,12 +31,27 @@ export const endpoints = {
         status: (id) => `/trips/${id}/status`,
         details: (id) => `/trips/${id}`,
     },
+    notifications: {
+        list: '/notifications',
+        unreadCount: '/notifications/unread-count',
+        markRead: (id) => `/notifications/${id}/read`,
+    },
     centers: {
         search: '/centers/search',
+        dashboard: '/centers/dashboard',
+        profile: '/centers/profile',
+        bookings: '/centers/bookings',
+        subscription: '/centers/subscription',
+        services: '/centers/services',
+        staff: '/centers/staff',
     },
     bookings: {
         create: '/bookings',
         list: '/bookings', // GET
         status: (id) => `/bookings/${id}`, // PATCH
+    },
+    drivers: {
+        stats: '/drivers/stats',
+        location: '/drivers/location', // PATCH
     }
 };

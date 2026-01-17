@@ -9,189 +9,103 @@ import {
   StatusBar,
   Alert,
   RefreshControl,
+  Modal,
+  TextInput,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import '../../global.css';
 import { useUser } from '../../context/UserContext';
+import { useNotifications } from '../../context/NotificationContext';
+import { get, patch } from '../../lib/api';
+import { endpoints } from '../../config/apiConfig';
+import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
+import { reverseGeocode } from '../../lib/locationService';
 
 const { width, height } = Dimensions.get('window');
 
 const CenterDashboardScreen = ({ navigation }) => {
   const { user } = useUser();
+  const { unreadCount } = useNotifications();
   const [refreshing, setRefreshing] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState('today');
-  const [centerStatus, setCenterStatus] = useState('open'); // open, closed, busy
+  const [centerStatus, setCenterStatus] = useState('open');
+  const [stats, setStats] = useState({
+    today: {
+      revenue: 0,
+      bookings: 0,
+      completedServices: 0,
+      pendingBookings: 0,
+      newCustomers: 0,
+      avgServiceTime: 0,
+      customerSatisfaction: 0,
+    },
+    week: { revenue: 0, bookings: 0, completedServices: 0, pendingBookings: 0, avgServiceTime: 0, customerSatisfaction: 0, newCustomers: 0 },
+    month: { revenue: 0, bookings: 0, completedServices: 0, pendingBookings: 0, avgServiceTime: 0, customerSatisfaction: 0, newCustomers: 0 },
+  });
+  const [activities, setActivities] = useState([]);
+
+  // Address Editing State
+  const [showAddressModal, setShowAddressModal] = useState(false);
+  const [newAddress, setNewAddress] = useState('');
+  const [isServing, setIsServing] = useState(false);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideUpAnim = useRef(new Animated.Value(30)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
   // Center data from context or fallbacks
-  const centerInfo = {
-    name: user?.name || user?.fullName || user?.full_name || 'My Car Wash',
+  // Center data from context or fallbacks - initialized with user data but updated from API
+  const [centerProfile, setCenterProfile] = useState({
+    name: user?.name || user?.fullName || 'My Car Wash',
     address: user?.address || 'Location not set',
-    rating: user?.rating || 4.8,
-    totalReviews: user?.totalReviews || 156,
-    subscriptionPlan: user?.subscriptionPlan || 'Premium',
-    subscriptionExpiry: user?.subscriptionExpiry || '2024-12-31',
-  };
-
-  // Mock dashboard data for different periods
-  const dashboardData = {
-    today: {
-      revenue: 3580,
-      bookings: 12,
-      completedServices: 8,
-      pendingBookings: 3,
-      cancelledBookings: 1,
-      avgServiceTime: 42,
-      customerSatisfaction: 4.7,
-      newCustomers: 3,
-    },
-    week: {
-      revenue: 18500,
-      bookings: 67,
-      completedServices: 58,
-      pendingBookings: 6,
-      cancelledBookings: 3,
-      avgServiceTime: 45,
-      customerSatisfaction: 4.6,
-      newCustomers: 15,
-    },
-    month: {
-      revenue: 85000,
-      bookings: 298,
-      completedServices: 275,
-      pendingBookings: 12,
-      cancelledBookings: 11,
-      avgServiceTime: 47,
-      customerSatisfaction: 4.5,
-      newCustomers: 68,
-    },
-  };
-
-  // Recent activities
-  const recentActivities = [
-    {
-      id: '1',
-      type: 'booking',
-      title: 'New booking received',
-      subtitle: 'Premium Wash - Rahul Sharma',
-      time: '2 min ago',
-      icon: 'calendar',
-      iconBg: '#00C851',
-    },
-    {
-      id: '2',
-      type: 'completion',
-      title: 'Service completed',
-      subtitle: 'Basic Wash - Priya Patel (₹199)',
-      time: '15 min ago',
-      icon: 'checkmark-circle',
-      iconBg: '#00C851',
-    },
-    {
-      id: '3',
-      type: 'review',
-      title: 'New 5-star review',
-      subtitle: 'Excellent service by Amit Kumar',
-      time: '1 hour ago',
-      icon: 'star',
-      iconBg: '#F59E0B',
-    },
-    {
-      id: '4',
-      type: 'payment',
-      title: 'Payment received',
-      subtitle: 'Deluxe Spa service (₹449)',
-      time: '2 hours ago',
-      icon: 'wallet',
-      iconBg: '#00C851',
-    },
-  ];
-
-  // Quick actions
-  const quickActions = [
-    {
-      id: 'manage_bookings',
-      title: 'Manage Bookings',
-      subtitle: `${dashboardData[selectedPeriod].pendingBookings} pending`,
-      icon: 'calendar',
-      iconLibrary: 'Ionicons',
-      color: '#00C851',
-      onPress: () => navigation.navigate('BookingManagement'),
-    },
-    {
-      id: 'view_analytics',
-      title: 'Analytics',
-      subtitle: 'Performance insights',
-      icon: 'bar-chart',
-      iconLibrary: 'Ionicons',
-      color: '#3B82F6',
-      onPress: () => Alert.alert('Analytics', 'Detailed analytics will be shown here'),
-    },
-    {
-      id: 'subscription',
-      title: 'Subscription',
-      subtitle: centerInfo.subscriptionPlan,
-      icon: 'card',
-      iconLibrary: 'Ionicons',
-      color: '#8B5CF6',
-      onPress: () => navigation.navigate('Subscription'),
-    },
-    {
-      id: 'staff_management',
-      title: 'Staff',
-      subtitle: 'Manage team',
-      icon: 'people',
-      iconLibrary: 'Ionicons',
-      color: '#F59E0B',
-      onPress: () => Alert.alert('Staff Management', 'Staff management will be implemented'),
-    },
-  ];
-
-  // Performance metrics
-  const performanceMetrics = [
-    {
-      title: 'Revenue',
-      value: `₹${dashboardData[selectedPeriod].revenue.toLocaleString()}`,
-      change: '+12%',
-      changeType: 'positive',
-      icon: 'trending-up',
-    },
-    {
-      title: 'Bookings',
-      value: dashboardData[selectedPeriod].bookings.toString(),
-      change: '+8%',
-      changeType: 'positive',
-      icon: 'calendar',
-    },
-    {
-      title: 'Satisfaction',
-      value: dashboardData[selectedPeriod].customerSatisfaction.toString(),
-      change: '+0.2',
-      changeType: 'positive',
-      icon: 'star',
-    },
-    {
-      title: 'Avg Time',
-      value: `${dashboardData[selectedPeriod].avgServiceTime}m`,
-      change: '-3m',
-      changeType: 'positive',
-      icon: 'time',
-    },
-  ];
-
-  const periods = [
-    { id: 'today', label: 'Today' },
-    { id: 'week', label: 'This Week' },
-    { id: 'month', label: 'This Month' },
-  ];
+    contactPhone: user?.phone || '',
+    logo: '',
+    rating: 0,
+    totalReviews: 0,
+    subscriptionPlan: 'Basic',
+    subscriptionExpiry: new Date().toISOString(),
+  });
 
   useEffect(() => {
     startAnimations();
+    fetchDashboardData();
   }, []);
+
+  const fetchDashboardData = async () => {
+    try {
+      const data = await get(endpoints.centers.dashboard);
+      if (data && data.dashboardData) {
+        const dd = data.dashboardData;
+        setStats(prev => ({
+          ...prev,
+          today: dd.today || prev.today,
+          week: dd.week || prev.week,
+          month: dd.month || prev.month,
+          // Store total revenue if needed or map widely
+        }));
+
+        // Fix for Subscription Plan showing as ID
+        let planName = dd.profile?.subscriptionPlan || 'Basic';
+        // If planName looks like a MongoDB ID (24 hex chars), assume 'Basic' or derive from ID if logic exists
+        if (/^[0-9a-fA-F]{24}$/.test(planName)) {
+          planName = 'Basic'; // Fallback to Basic if it's an ID
+        }
+
+        setCenterProfile(prev => ({
+          ...prev,
+          ...dd.profile,
+          subscriptionPlan: planName
+        }));
+
+        setActivities(dd.recentActivities || []);
+      }
+    } catch (error) {
+      console.error("Dashboard fetch error:", error);
+    }
+  };
+
+  // Removed handleUpdateAddress as it is now handled in EditCenterProfileScreen
 
   const startAnimations = () => {
     Animated.parallel([
@@ -208,7 +122,6 @@ const CenterDashboardScreen = ({ navigation }) => {
       }),
     ]).start();
 
-    // Pulse animation for live indicator
     Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, {
@@ -227,8 +140,7 @@ const CenterDashboardScreen = ({ navigation }) => {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    // TODO: Refresh dashboard data from API
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await fetchDashboardData();
     setRefreshing(false);
   };
 
@@ -269,6 +181,70 @@ const CenterDashboardScreen = ({ navigation }) => {
     return <IconComponent name={action.icon} size={24} color={action.color} />;
   };
 
+  // Quick actions
+  const quickActions = [
+    {
+      id: 'manage_bookings',
+      title: 'Manage Bookings',
+      subtitle: `${stats[selectedPeriod]?.pendingBookings || 0} pending`,
+      icon: 'calendar',
+      iconLibrary: 'Ionicons',
+      color: '#00C851',
+      onPress: () => navigation.navigate('Bookings'),
+    },
+    {
+      id: 'manage_services',
+      title: 'Services',
+      subtitle: 'Manage offerings',
+      icon: 'construct',
+      iconLibrary: 'Ionicons',
+      color: '#3B82F6',
+      onPress: () => navigation.navigate('ServiceManagement'),
+    },
+    {
+      id: 'subscription',
+      title: 'Subscription',
+      subtitle: centerProfile.subscriptionPlan,
+      icon: 'card',
+      iconLibrary: 'Ionicons',
+      color: '#8B5CF6',
+      onPress: () => navigation.navigate('Subscriptions'),
+    },
+    {
+      id: 'staff_management',
+      title: 'Staff',
+      subtitle: 'Manage team',
+      icon: 'people',
+      iconLibrary: 'Ionicons',
+      color: '#F59E0B',
+      onPress: () => navigation.navigate('StaffManagement'),
+    },
+  ];
+
+  // Performance metrics
+  const performanceMetrics = [
+    {
+      title: 'Revenue',
+      value: `₹${(stats[selectedPeriod]?.revenue || 0).toLocaleString()}`,
+      change: stats[selectedPeriod]?.revenueChange || '0%',
+      changeType: (stats[selectedPeriod]?.revenueChange || '').includes('-') ? 'negative' : 'positive',
+      icon: 'trending-up',
+    },
+    {
+      title: 'Bookings',
+      value: (stats[selectedPeriod]?.bookings || 0).toString(),
+      change: stats[selectedPeriod]?.bookingsChange || '0%',
+      changeType: (stats[selectedPeriod]?.bookingsChange || '').includes('-') ? 'negative' : 'positive',
+      icon: 'calendar',
+    },
+  ];
+
+  const periods = [
+    { id: 'today', label: 'Today' },
+    { id: 'week', label: 'This Week' },
+    { id: 'month', label: 'This Month' },
+  ];
+
   return (
     <View className="flex-1 bg-gray-50">
       <StatusBar barStyle="dark-content" backgroundColor="#f9fafb" />
@@ -299,13 +275,21 @@ const CenterDashboardScreen = ({ navigation }) => {
                   Good Morning
                 </Text>
                 <Text className="text-primary text-2xl font-bold">
-                  {centerInfo.name}
+                  {centerProfile.name}
                 </Text>
+                {centerProfile.contactPhone ? (
+                  <Text className="text-secondary text-xs mt-1">
+                    📞 {centerProfile.contactPhone}
+                  </Text>
+                ) : null}
                 <View className="flex-row items-center mt-1">
                   <Ionicons name="location" size={14} color="#6C757D" />
-                  <Text className="text-secondary text-sm ml-1">
-                    {centerInfo.address}
+                  <Text className="text-secondary text-sm ml-1 mr-2">
+                    {centerProfile.address}
                   </Text>
+                  <TouchableOpacity onPress={() => navigation.navigate('EditCenterProfile')}>
+                    <Ionicons name="pencil" size={14} color="#3B82F6" />
+                  </TouchableOpacity>
                 </View>
               </View>
 
@@ -367,17 +351,17 @@ const CenterDashboardScreen = ({ navigation }) => {
                   </View>
                   <View>
                     <Text className="text-primary text-lg font-bold">
-                      {centerInfo.rating} Rating
+                      {centerProfile.rating} Rating
                     </Text>
                     <Text className="text-secondary text-sm">
-                      Based on {centerInfo.totalReviews} reviews
+                      Based on {centerProfile.totalReviews} reviews
                     </Text>
                   </View>
                 </View>
 
                 <View className="bg-accent/10 px-3 py-1 rounded-full">
                   <Text className="text-accent text-sm font-semibold">
-                    {centerInfo.subscriptionPlan}
+                    {centerProfile.subscriptionPlan}
                   </Text>
                 </View>
               </View>
@@ -496,16 +480,16 @@ const CenterDashboardScreen = ({ navigation }) => {
           </View>
         </Animated.View>
 
-        {/* Service Summary */}
+        {/* Service Summary - Lifetime Stats */}
         <Animated.View
           style={{
             opacity: fadeAnim,
             transform: [{ translateY: slideUpAnim }],
           }}
-          className="px-6 mb-6"
+          className="px-6 mb-8"
         >
           <Text className="text-primary text-lg font-bold mb-4">
-            Service Summary
+            Service Summary (All Time)
           </Text>
 
           <View className="bg-white rounded-2xl shadow-sm shadow-black/5 border border-gray-100 overflow-hidden">
@@ -513,7 +497,7 @@ const CenterDashboardScreen = ({ navigation }) => {
               <View className="flex-row items-center justify-between">
                 <Text className="text-secondary text-sm">Total Bookings</Text>
                 <Text className="text-primary text-lg font-bold">
-                  {dashboardData[selectedPeriod].bookings}
+                  {stats.total?.bookings || 0}
                 </Text>
               </View>
             </View>
@@ -522,7 +506,7 @@ const CenterDashboardScreen = ({ navigation }) => {
               <View className="flex-row items-center justify-between">
                 <Text className="text-secondary text-sm">Completed Services</Text>
                 <Text className="text-green-600 text-lg font-bold">
-                  {dashboardData[selectedPeriod].completedServices}
+                  {stats.total?.completedServices || 0}
                 </Text>
               </View>
             </View>
@@ -531,24 +515,8 @@ const CenterDashboardScreen = ({ navigation }) => {
               <View className="flex-row items-center justify-between">
                 <Text className="text-secondary text-sm">Pending Bookings</Text>
                 <Text className="text-yellow-600 text-lg font-bold">
-                  {dashboardData[selectedPeriod].pendingBookings}
+                  {stats.total?.pendingBookings || 0}
                 </Text>
-              </View>
-            </View>
-
-            <View className="p-4">
-              <View className="flex-row items-center justify-between">
-                <Text className="text-secondary text-sm">New Customers</Text>
-                <View className="flex-row items-center">
-                  <Text className="text-primary text-lg font-bold mr-2">
-                    {dashboardData[selectedPeriod].newCustomers}
-                  </Text>
-                  <View className="bg-green-100 px-2 py-1 rounded-full">
-                    <Text className="text-green-600 text-xs font-semibold">
-                      +{Math.round((dashboardData[selectedPeriod].newCustomers / dashboardData[selectedPeriod].bookings) * 100)}%
-                    </Text>
-                  </View>
-                </View>
               </View>
             </View>
           </View>
@@ -574,93 +542,51 @@ const CenterDashboardScreen = ({ navigation }) => {
           </View>
 
           <View className="bg-white rounded-2xl shadow-sm shadow-black/5 border border-gray-100 overflow-hidden">
-            {recentActivities.map((activity, index) => (
-              <View
-                key={activity.id}
-                className={`p-4 flex-row items-center ${index !== recentActivities.length - 1 ? 'border-b border-gray-100' : ''
-                  }`}
-              >
+            {activities.length > 0 ? (
+              activities.map((activity, index) => (
                 <View
-                  className="w-10 h-10 rounded-full justify-center items-center mr-3"
-                  style={{ backgroundColor: activity.iconBg + '20' }}
+                  key={activity.id}
+                  className={`p-4 flex-row items-center ${index !== activities.length - 1 ? 'border-b border-gray-100' : ''
+                    }`}
                 >
-                  <Ionicons
-                    name={activity.icon}
-                    size={18}
-                    color={activity.iconBg}
-                  />
-                </View>
+                  <View
+                    className="w-10 h-10 rounded-full justify-center items-center mr-3"
+                    style={{ backgroundColor: '#00C851' + '20' }} // Default color for now
+                  >
+                    <Ionicons
+                      name="calendar" // Default icon
+                      size={18}
+                      color="#00C851"
+                    />
+                  </View>
 
-                <View className="flex-1">
-                  <Text className="text-primary text-base font-medium mb-1">
-                    {activity.title}
-                  </Text>
-                  <Text className="text-secondary text-sm">
-                    {activity.subtitle}
+                  <View className="flex-1">
+                    <Text className="text-primary text-base font-medium mb-1">
+                      {activity.title}
+                    </Text>
+                    <Text className="text-secondary text-sm">
+                      {activity.subtitle}
+                    </Text>
+                  </View>
+
+                  <Text className="text-secondary text-xs">
+                    {activity.time}
                   </Text>
                 </View>
-
-                <Text className="text-secondary text-xs">
-                  {activity.time}
-                </Text>
+              ))
+            ) : (
+              <View className="p-4 items-center">
+                <Text className="text-secondary">No recent activities</Text>
               </View>
-            ))}
+            )}
           </View>
         </Animated.View>
 
-        {/* Subscription Status */}
-        <Animated.View
-          style={{
-            opacity: fadeAnim,
-            transform: [{ translateY: slideUpAnim }],
-          }}
-          className="px-6 mb-8"
-        >
-          <TouchableOpacity
-            onPress={() => navigation.navigate('Subscription')}
-            activeOpacity={0.8}
-            className="rounded-2xl overflow-hidden"
-          >
-            <LinearGradient
-              colors={['#8B5CF6', '#7C3AED']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={{
-                borderRadius: 16,
-                padding: 20,
-              }}
-            >
-              <View className="flex-row items-center justify-between">
-                <View className="flex-1">
-                  <Text className="text-white text-lg font-bold mb-2">
-                    {centerInfo.subscriptionPlan} Plan
-                  </Text>
-                  <Text className="text-white/80 text-sm mb-3">
-                    Active until {new Date(centerInfo.subscriptionExpiry).toLocaleDateString()}
-                  </Text>
-                  <TouchableOpacity
-                    activeOpacity={0.8}
-                    style={{
-                      backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                      borderRadius: 12,
-                      paddingHorizontal: 16,
-                      paddingVertical: 8,
-                      alignSelf: 'flex-start',
-                    }}
-                  >
-                    <Text className="text-white text-sm font-semibold">
-                      Manage Plan
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-                <View className="w-16 h-16 bg-white/20 rounded-2xl justify-center items-center">
-                  <Ionicons name="diamond" size={24} color="#ffffff" />
-                </View>
-              </View>
-            </LinearGradient>
-          </TouchableOpacity>
-        </Animated.View>
+
       </ScrollView>
+
+      {/* Address Edit Modal */}
+      {/* Address Edit Modal Removed - Handled in EditCenterProfileScreen */}
     </View>
   );
 };

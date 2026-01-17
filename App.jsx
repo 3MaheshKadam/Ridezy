@@ -1,10 +1,14 @@
+import 'react-native-gesture-handler';
 import React from 'react';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import "./global.css";
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { UserProvider } from './context/UserContext';
+import { NotificationProvider } from './context/NotificationContext';
 
 // Auth Screens
 import SplashScreen from './screens/auth/SplashScreen';
@@ -26,6 +30,11 @@ import SubscriptionScreen from './screens/car-wash/SubscriptionScreen';
 import BookingManagementScreen from './screens/car-wash/BookingManagementScreen';
 import SearchWashScreen from './screens/car-wash/SearchWashScreen';
 import BookWashScreen from './screens/car-wash/BookWashScreen';
+import ServiceManagementScreen from './screens/car-wash/ServiceManagementScreen';
+import StaffManagementScreen from './screens/car-wash/StaffManagementScreen';
+import EditCenterProfileScreen from './screens/car-wash/EditCenterProfileScreen';
+import BookingStatusScreen from './screens/car-wash/BookingStatusScreen';
+import CenterProfileScreen from './screens/car-wash/CenterProfileScreen';
 
 // Driver Hire Module Screens
 import DriverDashboardScreen from './screens/driver-hire/DriverDashboardScreen';
@@ -36,6 +45,8 @@ import DriverRegistrationScreen from './screens/driver-hire/DriverRegistrationSc
 import DriverMatchingScreen from './screens/driver-hire/DriverMatchingScreen';
 import DriverRequestFeedScreen from './screens/driver-hire/DriverRequestFeedScreen';
 import DriverSubscription from './screens/driver-hire/DriverSubscription';
+import OwnerTripTrackingScreen from './screens/driver-hire/OwnerTripTrackingScreen';
+import DriverTripTrackingScreen from './screens/driver-hire/DriverTripTrackingScreen';
 
 // Admin Screens
 import AdminDashboardScreen from './screens/admin/AdminDashboardScreen';
@@ -65,6 +76,7 @@ const CarOwnerTabs = () => (
       component={SearchWashScreen}
       options={{
         title: 'Car Wash',
+        headerShown: false,
         tabBarIcon: ({ color, size }) => <Ionicons name="car" size={size} color={color} />
       }}
     />
@@ -155,7 +167,7 @@ const CenterTabs = () => (
     />
     <Tab.Screen
       name="Profile"
-      component={ProfileScreen}
+      component={CenterProfileScreen}
       options={{
         headerShown: false,
         tabBarIcon: ({ color, size }) => <Ionicons name="person" size={size} color={color} />
@@ -194,12 +206,30 @@ const AdminTabs = () => (
       }}
     />
     <Tab.Screen
+      name="CarOwnerApprovals"
+      component={CarOwnerApprovalScreen}
+      options={{
+        headerShown: false,
+        title: 'Owners',
+        tabBarIcon: ({ color, size }) => <Ionicons name="car" size={size} color={color} />
+      }}
+    />
+    <Tab.Screen
       name="DriverApprovals"
       component={DriverApprovalScreen}
       options={{
         headerShown: false,
-        title: 'Driver Approvals',
-        tabBarIcon: ({ color, size }) => <Ionicons name="person-add" size={size} color={color} />
+        title: 'Drivers',
+        tabBarIcon: ({ color, size }) => <Ionicons name="people" size={size} color={color} />
+      }}
+    />
+    <Tab.Screen
+      name="SubscriptionManagement"
+      component={SubscriptionManagementScreen}
+      options={{
+        headerShown: false,
+        title: 'Plans',
+        tabBarIcon: ({ color, size }) => <Ionicons name="list" size={size} color={color} />
       }}
     />
     <Tab.Screen
@@ -208,16 +238,7 @@ const AdminTabs = () => (
       options={{
         headerShown: false,
         title: 'Payments',
-        tabBarIcon: ({ color, size }) => <Ionicons name="stats-chart" size={size} color={color} />
-      }}
-    />
-    <Tab.Screen
-      name="Profile"
-      component={ProfileScreen}
-      options={{
-        headerShown: false,
-        title: 'Profile',
-        tabBarIcon: ({ color, size }) => <Ionicons name="person" size={size} color={color} />
+        tabBarIcon: ({ color, size }) => <Ionicons name="card" size={size} color={color} />
       }}
     />
   </Tab.Navigator>
@@ -225,55 +246,68 @@ const AdminTabs = () => (
 
 export default function App() {
   return (
-    <UserProvider>
-      <NavigationContainer>
-        <Stack.Navigator initialRouteName="Splash">
-          {/* Auth Screens */}
-          <Stack.Screen name="Splash" component={SplashScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="Welcome" component={WelcomeScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="Register" component={RegisterScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="CarOwnerRegistration" component={CarOwnerRegistrationScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="CarWashCenterRegistration" component={CarWashCenterRegistrationScreen} options={{ headerShown: false }} />
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <UserProvider>
+          <NotificationProvider>
+            <NavigationContainer>
+              <Stack.Navigator initialRouteName="Splash">
+                {/* Auth Screens */}
+                <Stack.Screen name="Splash" component={SplashScreen} options={{ headerShown: false }} />
+                <Stack.Screen name="Welcome" component={WelcomeScreen} options={{ headerShown: false }} />
+                <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
+                <Stack.Screen name="Register" component={RegisterScreen} options={{ headerShown: false }} />
+                <Stack.Screen name="CarOwnerRegistration" component={CarOwnerRegistrationScreen} options={{ headerShown: false }} />
+                <Stack.Screen name="CarWashCenterRegistration" component={CarWashCenterRegistrationScreen} options={{ headerShown: false }} />
 
-          {/* Shared Screens */}
-          <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="Profile" component={ProfileScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="Support" component={SupportScreen} options={{ headerShown: false }} />
+                {/* Shared Screens */}
+                <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
+                <Stack.Screen name="Profile" component={ProfileScreen} options={{ headerShown: false }} />
+                <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ headerShown: false }} />
+                <Stack.Screen name="Support" component={SupportScreen} options={{ headerShown: false }} />
 
-          {/* Car Wash Module Screens */}
-          <Stack.Screen name="CenterDashboard" component={CenterDashboardScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="Subscriptions" component={SubscriptionScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="Bookings" component={BookingManagementScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="SearchWash" component={SearchWashScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="BookWash" component={BookWashScreen} options={{ headerShown: false }} />
+                {/* Car Wash Module Screens */}
+                <Stack.Screen name="CenterDashboard" component={CenterDashboardScreen} options={{ headerShown: false }} />
+                <Stack.Screen name="Subscriptions" component={SubscriptionScreen} options={{ headerShown: false }} />
+                <Stack.Screen name="Bookings" component={BookingManagementScreen} options={{ headerShown: false }} />
+                <Stack.Screen name="SearchWash" component={SearchWashScreen} options={{ headerShown: false }} />
+                <Stack.Screen name="BookWash" component={BookWashScreen} options={{ headerShown: false }} />
+                <Stack.Screen name="ServiceManagement" component={ServiceManagementScreen} options={{ headerShown: false }} />
+                <Stack.Screen name="StaffManagement" component={StaffManagementScreen} options={{ headerShown: false }} />
+                <Stack.Screen name="EditCenterProfile" component={EditCenterProfileScreen} options={{ headerShown: false }} />
+                <Stack.Screen name="BookingStatus" component={BookingStatusScreen} options={{ headerShown: false }} />
 
-          {/* Driver Hire Module Screens */}
-          <Stack.Screen name="DriverDashboard" component={DriverDashboardScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="TripRequest" component={TripRequestScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="DriverTrips" component={DriverTripsScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="TripTracking" component={TripTrackingScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="DriverMatching" component={DriverMatchingScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="DriverRegistration" component={DriverRegistrationScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="DriverRequestFeed" component={DriverRequestFeedScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="DriverSubscription" component={DriverSubscription} options={{ headerShown: false }} />
+                {/* Driver Hire Module Screens */}
+                <Stack.Screen name="DriverDashboard" component={DriverDashboardScreen} options={{ headerShown: false }} />
+                <Stack.Screen name="TripRequest" component={TripRequestScreen} options={{ headerShown: false }} />
+                <Stack.Screen name="DriverTrips" component={DriverTripsScreen} options={{ headerShown: false }} />
+                <Stack.Screen name="TripTracking" component={TripTrackingScreen} options={{ headerShown: false }} />
+                <Stack.Screen name="DriverMatching" component={DriverMatchingScreen} options={{ headerShown: false }} />
+                <Stack.Screen name="DriverRegistration" component={DriverRegistrationScreen} options={{ headerShown: false }} />
+                <Stack.Screen name="DriverRequestFeed" component={DriverRequestFeedScreen} options={{ headerShown: false }} />
+                <Stack.Screen name="DriverSubscription" component={DriverSubscription} options={{ headerShown: false }} />
+                <Stack.Screen name="OwnerTripTracking" component={OwnerTripTrackingScreen} options={{ headerShown: false }} />
+                <Stack.Screen name="DriverTripTracking" component={DriverTripTrackingScreen} options={{ headerShown: false }} />
 
-          {/* Admin Screens */}
-          <Stack.Screen name="AdminDashboard" component={AdminDashboardScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="CarWashApprovals" component={CarWashApprovalScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="CarOwnerApprovals" component={CarOwnerApprovalScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="DriverApprovals" component={DriverApprovalScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="SubscriptionManagement" component={SubscriptionManagementScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="PaymentOverview" component={PaymentOverviewScreen} options={{ headerShown: false }} />
 
-          {/* Role-Based Tab Navigators */}
-          <Stack.Screen name="CarOwnerTabs" component={CarOwnerTabs} options={{ headerShown: false }} />
-          <Stack.Screen name="DriverTabs" component={DriverTabs} options={{ headerShown: false }} />
-          <Stack.Screen name="CenterTabs" component={CenterTabs} options={{ headerShown: false }} />
-          <Stack.Screen name="AdminTabs" component={AdminTabs} options={{ headerShown: false }} />
-        </Stack.Navigator>
-      </NavigationContainer>
-    </UserProvider>
+                {/* Admin Screens are handled in AdminTabs */}
+                {/* <Stack.Screen name="AdminDashboard" component={AdminDashboardScreen} options={{ headerShown: false }} /> */}
+                {/* <Stack.Screen name="CarWashApprovals" component={CarWashApprovalScreen} options={{ headerShown: false }} /> */}
+                {/* <Stack.Screen name="CarOwnerApprovals" component={CarOwnerApprovalScreen} options={{ headerShown: false }} /> */}
+                {/* <Stack.Screen name="DriverApprovals" component={DriverApprovalScreen} options={{ headerShown: false }} /> */}
+                {/* <Stack.Screen name="SubscriptionManagement" component={SubscriptionManagementScreen} options={{ headerShown: false }} /> */}
+                {/* <Stack.Screen name="PaymentOverview" component={PaymentOverviewScreen} options={{ headerShown: false }} /> */}
+
+                {/* Role-Based Tab Navigators */}
+                <Stack.Screen name="CarOwnerTabs" component={CarOwnerTabs} options={{ headerShown: false }} />
+                <Stack.Screen name="DriverTabs" component={DriverTabs} options={{ headerShown: false }} />
+                <Stack.Screen name="CenterTabs" component={CenterTabs} options={{ headerShown: false }} />
+                <Stack.Screen name="AdminTabs" component={AdminTabs} options={{ headerShown: false }} />
+              </Stack.Navigator>
+            </NavigationContainer>
+          </NotificationProvider>
+        </UserProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }

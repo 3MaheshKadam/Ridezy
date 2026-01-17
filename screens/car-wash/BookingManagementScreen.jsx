@@ -11,9 +11,12 @@ import {
   Modal,
   FlatList,
   RefreshControl,
+  Linking,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import { get, patch } from '../../lib/api';
+import { endpoints } from '../../config/apiConfig';
 import '../../global.css';
 
 const { width, height } = Dimensions.get('window');
@@ -23,160 +26,58 @@ const BookingManagementScreen = ({ navigation }) => {
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+
+  /* DYNAMIC STATE MANAGEMENT */
+  const [bookings, setBookings] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // Stats
   const [todayStats, setTodayStats] = useState({
-    totalBookings: 12,
-    pendingBookings: 3,
-    completedBookings: 7,
-    cancelledBookings: 2,
-    totalRevenue: 3580,
+    totalBookings: 0,
+    pendingBookings: 0,
+    completedBookings: 0,
+    cancelledBookings: 0,
+    totalRevenue: 0,
   });
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideUpAnim = useRef(new Animated.Value(30)).current;
   const modalSlideAnim = useRef(new Animated.Value(height)).current;
 
-  // Mock booking data
-  const bookingsData = {
-    pending: [
-      {
-        id: '1',
-        customerName: 'Rahul Sharma',
-        customerPhone: '+91 98765 43210',
-        customerAvatar: '👨',
-        service: 'Premium Wash',
-        vehicleType: 'Sedan',
-        vehicleNumber: 'MH 27 AB 1234',
-        scheduledTime: '10:30 AM',
-        scheduledDate: 'Today',
-        price: 299,
-        duration: 45,
-        status: 'pending',
-        specialInstructions: 'Please focus on interior cleaning',
-        createdAt: '9:15 AM',
-      },
-      {
-        id: '2',
-        customerName: 'Priya Patel',
-        customerPhone: '+91 87654 32109',
-        customerAvatar: '👩',
-        service: 'Basic Wash',
-        vehicleType: 'Hatchback',
-        vehicleNumber: 'MH 27 CD 5678',
-        scheduledTime: '2:00 PM',
-        scheduledDate: 'Today',
-        price: 199,
-        duration: 30,
-        status: 'pending',
-        specialInstructions: '',
-        createdAt: '11:30 AM',
-      },
-      {
-        id: '3',
-        customerName: 'Amit Kumar',
-        customerPhone: '+91 76543 21098',
-        customerAvatar: '👨‍💼',
-        service: 'Deluxe Spa',
-        vehicleType: 'SUV',
-        vehicleNumber: 'MH 27 EF 9012',
-        scheduledTime: '4:30 PM',
-        scheduledDate: 'Today',
-        price: 449,
-        duration: 60,
-        status: 'pending',
-        specialInstructions: 'Customer prefers eco-friendly products',
-        createdAt: '1:45 PM',
-      },
-    ],
-    ongoing: [
-      {
-        id: '4',
-        customerName: 'Sneha Desai',
-        customerPhone: '+91 65432 10987',
-        customerAvatar: '👩‍💻',
-        service: 'Premium Wash',
-        vehicleType: 'Sedan',
-        vehicleNumber: 'MH 27 GH 3456',
-        scheduledTime: '9:00 AM',
-        scheduledDate: 'Today',
-        price: 299,
-        duration: 45,
-        status: 'ongoing',
-        specialInstructions: '',
-        createdAt: '8:30 AM',
-        startedAt: '9:05 AM',
-        progress: 75,
-      },
-    ],
-    completed: [
-      {
-        id: '5',
-        customerName: 'Vikash Singh',
-        customerPhone: '+91 54321 09876',
-        customerAvatar: '👨‍🎓',
-        service: 'Basic Wash',
-        vehicleType: 'Hatchback',
-        vehicleNumber: 'MH 27 IJ 7890',
-        scheduledTime: '8:00 AM',
-        scheduledDate: 'Today',
-        price: 199,
-        duration: 30,
-        status: 'completed',
-        specialInstructions: '',
-        createdAt: '7:15 AM',
-        completedAt: '8:35 AM',
-        customerRating: 5,
-      },
-      {
-        id: '6',
-        customerName: 'Anjali Mehta',
-        customerPhone: '+91 43210 98765',
-        customerAvatar: '👩‍🔬',
-        service: 'Premium Wash',
-        vehicleType: 'SUV',
-        vehicleNumber: 'MH 27 KL 2345',
-        scheduledTime: '7:30 AM',
-        scheduledDate: 'Today',
-        price: 359,
-        duration: 45,
-        status: 'completed',
-        specialInstructions: 'Extra attention to wheels',
-        createdAt: '6:45 AM',
-        completedAt: '8:20 AM',
-        customerRating: 4,
-      },
-    ],
-    cancelled: [
-      {
-        id: '7',
-        customerName: 'Rohan Joshi',
-        customerPhone: '+91 32109 87654',
-        customerAvatar: '👨‍⚕️',
-        service: 'Deluxe Spa',
-        vehicleType: 'Luxury',
-        vehicleNumber: 'MH 27 MN 6789',
-        scheduledTime: '11:00 AM',
-        scheduledDate: 'Today',
-        price: 549,
-        duration: 60,
-        status: 'cancelled',
-        specialInstructions: '',
-        createdAt: '10:00 AM',
-        cancelledAt: '10:45 AM',
-        cancellationReason: 'Customer emergency',
-      },
-    ],
-  };
-
-  const tabs = [
-    { id: 'pending', label: 'Pending', count: bookingsData.pending.length, color: '#F59E0B' },
-    { id: 'ongoing', label: 'Ongoing', count: bookingsData.ongoing.length, color: '#00C851' },
-    { id: 'completed', label: 'Completed', count: bookingsData.completed.length, color: '#00C851' },
-    { id: 'cancelled', label: 'Cancelled', count: bookingsData.cancelled.length, color: '#dc2626' },
-  ];
-
   useEffect(() => {
     startAnimations();
+    fetchBookings();
   }, []);
+
+  const fetchBookings = async () => {
+    try {
+      const data = await get(endpoints.centers.bookings); // Use new endpoint
+      if (data && data.bookings) {
+        setBookings(data.bookings);
+        calculateStats(data.bookings);
+      }
+    } catch (err) {
+      console.error("Failed to fetch bookings", err);
+      Alert.alert("Error", "Failed to load bookings");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  const calculateStats = (allBookings) => {
+    // Calculating stats for ALL bookings to ensure visibility
+    const stats = {
+      totalBookings: allBookings.length,
+      pendingBookings: allBookings.filter(b => b.status === 'PENDING').length,
+      completedBookings: allBookings.filter(b => b.status === 'COMPLETED').length,
+      cancelledBookings: allBookings.filter(b => b.status === 'CANCELLED').length,
+      totalRevenue: allBookings
+        .filter(b => b.status === 'COMPLETED')
+        .reduce((sum, b) => sum + (b.price || 0), 0)
+    };
+    setTodayStats(stats);
+  };
 
   const startAnimations = () => {
     Animated.parallel([
@@ -194,17 +95,32 @@ const BookingManagementScreen = ({ navigation }) => {
     ]).start();
   };
 
-  const onRefresh = async () => {
+  const onRefresh = () => {
     setRefreshing(true);
-    // TODO: Refresh booking data from API
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    setRefreshing(false);
+    fetchBookings();
   };
+
+  // Helper to filter bookings for tabs
+  const getFilteredBookings = (statusTab) => {
+    if (statusTab === 'pending') return bookings.filter(b => b.status === 'PENDING');
+    if (statusTab === 'ongoing') return bookings.filter(b => b.status === 'CONFIRMED' || b.status === 'IN_PROGRESS'); // Ongoing includes Confirmed (Accepted) & In Progress
+    if (statusTab === 'completed') return bookings.filter(b => b.status === 'COMPLETED');
+    if (statusTab === 'cancelled') return bookings.filter(b => b.status === 'CANCELLED');
+    return [];
+  };
+
+  // Derived data for tabs count
+  const tabs = [
+    { id: 'pending', label: 'Pending', count: bookings.filter(b => b.status === 'PENDING').length, color: '#F59E0B' },
+    { id: 'ongoing', label: 'Ongoing', count: bookings.filter(b => b.status === 'CONFIRMED' || b.status === 'IN_PROGRESS').length, color: '#00C851' },
+    { id: 'completed', label: 'Completed', count: bookings.filter(b => b.status === 'COMPLETED').length, color: '#00C851' },
+    { id: 'cancelled', label: 'Cancelled', count: bookings.filter(b => b.status === 'CANCELLED').length, color: '#dc2626' },
+  ];
 
   const openBookingModal = (booking) => {
     setSelectedBooking(booking);
     setShowBookingModal(true);
-    
+
     Animated.timing(modalSlideAnim, {
       toValue: 0,
       duration: 300,
@@ -231,7 +147,7 @@ const BookingManagementScreen = ({ navigation }) => {
           'Are you sure you want to accept this booking?',
           [
             { text: 'Cancel', style: 'cancel' },
-            { text: 'Accept', onPress: () => updateBookingStatus(booking.id, 'accepted') }
+            { text: 'Accept', onPress: () => updateBookingStatus(booking._id, 'accepted') }
           ]
         );
         break;
@@ -241,26 +157,48 @@ const BookingManagementScreen = ({ navigation }) => {
           'Are you sure you want to reject this booking?',
           [
             { text: 'Cancel', style: 'cancel' },
-            { text: 'Reject', style: 'destructive', onPress: () => updateBookingStatus(booking.id, 'rejected') }
+            { text: 'Reject', style: 'destructive', onPress: () => updateBookingStatus(booking._id, 'rejected') }
           ]
         );
         break;
       case 'start':
-        updateBookingStatus(booking.id, 'ongoing');
+        updateBookingStatus(booking._id, 'ongoing');
         break;
       case 'complete':
-        updateBookingStatus(booking.id, 'completed');
+        updateBookingStatus(booking._id, 'completed');
         break;
       case 'call':
-        Alert.alert('Call Customer', `Calling ${booking.customerName} at ${booking.customerPhone}`);
+        const phoneNumber = booking.ownerId?.phone;
+        if (phoneNumber) {
+          Linking.openURL(`tel:${phoneNumber}`);
+        } else {
+          Alert.alert('Error', 'No phone number available for this customer.');
+        }
         break;
     }
   };
 
-  const updateBookingStatus = (bookingId, newStatus) => {
-    // TODO: Update booking status via API
-    closeBookingModal();
-    Alert.alert('Success', `Booking ${newStatus} successfully!`);
+  /* DYNAMIC ACTION HANDLER */
+  const updateBookingStatus = async (bookingId, newStatus) => {
+    try {
+      // Map UI status to Backend ENUM Status if needed
+      let backendStatus = newStatus.toUpperCase();
+      if (newStatus === 'ongoing') backendStatus = 'IN_PROGRESS';
+      if (newStatus === 'accepted') backendStatus = 'CONFIRMED';
+      if (newStatus === 'completed') backendStatus = 'COMPLETED';
+      if (newStatus === 'rejected') backendStatus = 'CANCELLED';
+
+      await patch(endpoints.bookings.status(bookingId), { status: backendStatus });
+
+      closeBookingModal();
+      Alert.alert('Success', `Booking marked as ${newStatus}!`);
+
+      // Refresh list
+      fetchBookings();
+    } catch (error) {
+      console.error("Update failed", error);
+      Alert.alert("Error", "Failed to update status");
+    }
   };
 
   const getStatusColor = (status) => {
@@ -288,168 +226,141 @@ const BookingManagementScreen = ({ navigation }) => {
     return timeString;
   };
 
-  const renderBookingCard = ({ item }) => (
-    <TouchableOpacity
-      onPress={() => openBookingModal(item)}
-      activeOpacity={0.8}
-      className="bg-white rounded-2xl mx-4 mb-4 shadow-sm shadow-black/5 border border-gray-100 overflow-hidden"
-    >
-      {/* Header */}
-      <View className="p-4 pb-3">
-        <View className="flex-row items-center justify-between mb-3">
-          <View className="flex-row items-center">
-            <View className="w-12 h-12 bg-accent/10 rounded-2xl justify-center items-center mr-3">
-              <Text className="text-2xl">{item.customerAvatar}</Text>
+  const renderBookingCard = ({ item }) => {
+    // Helper to safely access nested properties
+    const customerName = item.ownerId?.full_name || 'Unknown Customer';
+    const customerPhone = item.ownerId?.phone || 'No Phone';
+    const customerAvatar = item.ownerId?.avatar || '👤'; // Using emoji for now if avatar url is complex
+    const vehicleType = item.vehicleId?.type || 'Vehicle';
+    const vehicleNumber = item.vehicleId?.plateNumber || 'No Plate';
+    const serviceName = item.packageType || 'Service';
+    const scheduledTime = new Date(item.scheduledTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    return (
+      <TouchableOpacity
+        onPress={() => openBookingModal(item)}
+        activeOpacity={0.8}
+        className="bg-white rounded-2xl mx-4 mb-4 shadow-sm shadow-black/5 border border-gray-100 overflow-hidden"
+      >
+        {/* Header */}
+        <View className="p-4 pb-3">
+          <View className="flex-row items-center justify-between mb-3">
+            <View className="flex-row items-center">
+              <View className="w-12 h-12 bg-accent/10 rounded-2xl justify-center items-center mr-3">
+                <Text className="text-2xl">👤</Text>
+              </View>
+              <View>
+                <Text className="text-primary text-lg font-bold">
+                  {customerName}
+                </Text>
+                <Text className="text-secondary text-sm">
+                  {vehicleType} • {vehicleNumber}
+                </Text>
+              </View>
             </View>
+
+            <View className="items-end">
+              <View
+                className="px-3 py-1 rounded-full"
+                style={{ backgroundColor: getStatusColor(item.status.toLowerCase()) + '20' }}
+              >
+                <Text
+                  className="text-xs font-semibold capitalize"
+                  style={{ color: getStatusColor(item.status.toLowerCase()) }}
+                >
+                  {item.status}
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Service Details */}
+          <View className="flex-row items-center justify-between mb-3">
             <View>
-              <Text className="text-primary text-lg font-bold">
-                {item.customerName}
+              <Text className="text-primary text-base font-semibold">
+                {serviceName}
               </Text>
               <Text className="text-secondary text-sm">
-                {item.vehicleType} • {item.vehicleNumber}
+                {formatTime(scheduledTime)}
               </Text>
             </View>
+
+            <Text className="text-primary text-xl font-bold">
+              ₹{item.price}
+            </Text>
           </View>
-          
-          <View className="items-end">
-            <View 
-              className="px-3 py-1 rounded-full"
-              style={{ backgroundColor: getStatusColor(item.status) + '20' }}
-            >
-              <Text 
-                className="text-xs font-semibold capitalize"
-                style={{ color: getStatusColor(item.status) }}
-              >
-                {item.status}
-              </Text>
-            </View>
-            {item.status === 'ongoing' && item.progress && (
-              <Text className="text-secondary text-xs mt-1">
-                {item.progress}% Complete
-              </Text>
+        </View>
+
+        {/* Actions */}
+        <View className="bg-gray-50 px-4 py-3 flex-row justify-between">
+          <TouchableOpacity
+            onPress={() => handleBookingAction('call', item)}
+            className="flex-row items-center bg-blue-100 px-4 py-2 rounded-xl"
+            activeOpacity={0.8}
+          >
+            <Ionicons name="call" size={16} color="#3B82F6" />
+            <Text className="text-blue-600 text-sm font-semibold ml-2">
+              Call
+            </Text>
+          </TouchableOpacity>
+
+          <View className="flex-row space-x-2">
+            {item.status === 'PENDING' && (
+              <>
+                <TouchableOpacity
+                  onPress={() => handleBookingAction('reject', item)}
+                  className="bg-red-100 px-4 py-2 rounded-xl"
+                  activeOpacity={0.8}
+                >
+                  <Text className="text-red-600 text-sm font-semibold">
+                    Reject
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => handleBookingAction('accept', item)}
+                  className="bg-accent/10 px-4 py-2 rounded-xl"
+                  activeOpacity={0.8}
+                >
+                  <Text className="text-accent text-sm font-semibold">
+                    Accept
+                  </Text>
+                </TouchableOpacity>
+              </>
             )}
-          </View>
-        </View>
 
-        {/* Service Details */}
-        <View className="flex-row items-center justify-between mb-3">
-          <View>
-            <Text className="text-primary text-base font-semibold">
-              {item.service}
-            </Text>
-            <Text className="text-secondary text-sm">
-              {item.duration} min • {formatTime(item.scheduledTime)}
-            </Text>
-          </View>
-          
-          <Text className="text-primary text-xl font-bold">
-            ₹{item.price}
-          </Text>
-        </View>
-
-        {/* Special Instructions */}
-        {item.specialInstructions ? (
-          <View className="bg-blue-50 rounded-xl p-3 mb-3">
-            <View className="flex-row items-start">
-              <Ionicons name="information-circle" size={16} color="#3B82F6" />
-              <Text className="text-blue-600 text-sm ml-2 flex-1">
-                {item.specialInstructions}
-              </Text>
-            </View>
-          </View>
-        ) : null}
-
-        {/* Progress Bar for Ongoing */}
-        {item.status === 'ongoing' && item.progress && (
-          <View className="mb-3">
-            <View className="bg-gray-200 h-2 rounded-full">
-              <View 
-                className="bg-accent h-2 rounded-full"
-                style={{ width: `${item.progress}%` }}
-              />
-            </View>
-          </View>
-        )}
-      </View>
-
-      {/* Actions */}
-      <View className="bg-gray-50 px-4 py-3 flex-row justify-between">
-        <TouchableOpacity
-          onPress={() => handleBookingAction('call', item)}
-          className="flex-row items-center bg-blue-100 px-4 py-2 rounded-xl"
-          activeOpacity={0.8}
-        >
-          <Ionicons name="call" size={16} color="#3B82F6" />
-          <Text className="text-blue-600 text-sm font-semibold ml-2">
-            Call
-          </Text>
-        </TouchableOpacity>
-
-        <View className="flex-row space-x-2">
-          {item.status === 'pending' && (
-            <>
+            {item.status === 'CONFIRMED' && (
               <TouchableOpacity
-                onPress={() => handleBookingAction('reject', item)}
-                className="bg-red-100 px-4 py-2 rounded-xl"
-                activeOpacity={0.8}
-              >
-                <Text className="text-red-600 text-sm font-semibold">
-                  Reject
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => handleBookingAction('accept', item)}
+                onPress={() => handleBookingAction('start', item)}
                 className="bg-accent/10 px-4 py-2 rounded-xl"
                 activeOpacity={0.8}
               >
                 <Text className="text-accent text-sm font-semibold">
-                  Accept
+                  Start Service
                 </Text>
               </TouchableOpacity>
-            </>
-          )}
+            )}
 
-          {item.status === 'accepted' && (
-            <TouchableOpacity
-              onPress={() => handleBookingAction('start', item)}
-              className="bg-accent/10 px-4 py-2 rounded-xl"
-              activeOpacity={0.8}
-            >
-              <Text className="text-accent text-sm font-semibold">
-                Start
-              </Text>
-            </TouchableOpacity>
-          )}
-
-          {item.status === 'ongoing' && (
-            <TouchableOpacity
-              onPress={() => handleBookingAction('complete', item)}
-              className="bg-accent/10 px-4 py-2 rounded-xl"
-              activeOpacity={0.8}
-            >
-              <Text className="text-accent text-sm font-semibold">
-                Complete
-              </Text>
-            </TouchableOpacity>
-          )}
-
-          {item.status === 'completed' && item.customerRating && (
-            <View className="bg-yellow-100 px-4 py-2 rounded-xl flex-row items-center">
-              <Ionicons name="star" size={16} color="#F59E0B" />
-              <Text className="text-yellow-600 text-sm font-semibold ml-1">
-                {item.customerRating}
-              </Text>
-            </View>
-          )}
+            {item.status === 'IN_PROGRESS' && (
+              <TouchableOpacity
+                onPress={() => handleBookingAction('complete', item)}
+                className="bg-accent/10 px-4 py-2 rounded-xl"
+                activeOpacity={0.8}
+              >
+                <Text className="text-accent text-sm font-semibold">
+                  Complete
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
-      </View>
-    </TouchableOpacity>
-  );
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <View className="flex-1 bg-gray-50">
       <StatusBar barStyle="dark-content" backgroundColor="#f9fafb" />
-      
+
       {/* Custom Header */}
       <Animated.View
         style={{
@@ -466,11 +377,11 @@ const BookingManagementScreen = ({ navigation }) => {
           >
             <Ionicons name="chevron-back" size={20} color="#1A1B23" />
           </TouchableOpacity>
-          
+
           <View className="flex-1 items-center">
             <Text className="text-primary text-lg font-semibold">Manage Bookings</Text>
           </View>
-          
+
           <TouchableOpacity
             onPress={onRefresh}
             className="w-10 h-10 bg-gray-100 rounded-2xl justify-center items-center"
@@ -490,9 +401,9 @@ const BookingManagementScreen = ({ navigation }) => {
         className="bg-white mx-4 mt-4 rounded-2xl p-4 shadow-sm shadow-black/5 border border-gray-100"
       >
         <Text className="text-primary text-lg font-bold mb-4">
-          Today's Overview
+          Booking Overview
         </Text>
-        
+
         <View className="flex-row justify-between">
           <View className="items-center">
             <Text className="text-primary text-2xl font-bold">
@@ -500,21 +411,21 @@ const BookingManagementScreen = ({ navigation }) => {
             </Text>
             <Text className="text-secondary text-sm">Total</Text>
           </View>
-          
+
           <View className="items-center">
             <Text className="text-yellow-600 text-2xl font-bold">
               {todayStats.pendingBookings}
             </Text>
             <Text className="text-secondary text-sm">Pending</Text>
           </View>
-          
+
           <View className="items-center">
             <Text className="text-green-600 text-2xl font-bold">
               {todayStats.completedBookings}
             </Text>
             <Text className="text-secondary text-sm">Completed</Text>
           </View>
-          
+
           <View className="items-center">
             <Text className="text-primary text-2xl font-bold">
               ₹{todayStats.totalRevenue}
@@ -538,18 +449,16 @@ const BookingManagementScreen = ({ navigation }) => {
               <TouchableOpacity
                 key={tab.id}
                 onPress={() => setSelectedTab(tab.id)}
-                className={`flex-row items-center px-4 py-3 rounded-xl mr-2 ${
-                  selectedTab === tab.id ? 'bg-accent/10' : 'bg-transparent'
-                }`}
+                className={`flex-row items-center px-4 py-3 rounded-xl mr-2 ${selectedTab === tab.id ? 'bg-accent/10' : 'bg-transparent'
+                  }`}
                 activeOpacity={0.7}
               >
-                <View 
+                <View
                   className="w-3 h-3 rounded-full mr-2"
                   style={{ backgroundColor: tab.color }}
                 />
-                <Text className={`text-sm font-medium ${
-                  selectedTab === tab.id ? 'text-accent' : 'text-secondary'
-                }`}>
+                <Text className={`text-sm font-medium ${selectedTab === tab.id ? 'text-accent' : 'text-secondary'
+                  }`}>
                   {tab.label}
                 </Text>
                 {tab.count > 0 && (
@@ -574,9 +483,9 @@ const BookingManagementScreen = ({ navigation }) => {
         className="flex-1 mt-4"
       >
         <FlatList
-          data={bookingsData[selectedTab] || []}
+          data={getFilteredBookings(selectedTab)}
           renderItem={renderBookingCard}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item) => item._id || item.id}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
@@ -591,10 +500,10 @@ const BookingManagementScreen = ({ navigation }) => {
                 No {selectedTab} bookings
               </Text>
               <Text className="text-secondary text-sm text-center">
-                {selectedTab === 'pending' ? 'New bookings will appear here' : 
-                 selectedTab === 'ongoing' ? 'Active services will be shown here' :
-                 selectedTab === 'completed' ? 'Completed bookings will be listed here' :
-                 'Cancelled bookings will appear here'}
+                {selectedTab === 'pending' ? 'New bookings will appear here' :
+                  selectedTab === 'ongoing' ? 'Active services will be shown here' :
+                    selectedTab === 'completed' ? 'Completed bookings will be listed here' :
+                      'Cancelled bookings will appear here'}
               </Text>
             </View>
           }
@@ -629,7 +538,7 @@ const BookingManagementScreen = ({ navigation }) => {
                   <Text className="text-primary text-base font-semibold mb-3">
                     Customer Information
                   </Text>
-                  
+
                   <View className="flex-row items-center mb-3">
                     <View className="w-12 h-12 bg-accent/10 rounded-2xl justify-center items-center mr-3">
                       <Text className="text-2xl">{selectedBooking.customerAvatar}</Text>
@@ -650,7 +559,7 @@ const BookingManagementScreen = ({ navigation }) => {
                   <Text className="text-primary text-base font-semibold mb-3">
                     Service Details
                   </Text>
-                  
+
                   <View className="space-y-3">
                     <View className="flex-row justify-between">
                       <Text className="text-secondary text-sm">Service</Text>
@@ -658,28 +567,28 @@ const BookingManagementScreen = ({ navigation }) => {
                         {selectedBooking.service}
                       </Text>
                     </View>
-                    
+
                     <View className="flex-row justify-between">
                       <Text className="text-secondary text-sm">Vehicle</Text>
                       <Text className="text-primary text-sm font-medium">
                         {selectedBooking.vehicleType} • {selectedBooking.vehicleNumber}
                       </Text>
                     </View>
-                    
+
                     <View className="flex-row justify-between">
                       <Text className="text-secondary text-sm">Scheduled</Text>
                       <Text className="text-primary text-sm font-medium">
                         {selectedBooking.scheduledDate} • {selectedBooking.scheduledTime}
                       </Text>
                     </View>
-                    
+
                     <View className="flex-row justify-between">
                       <Text className="text-secondary text-sm">Duration</Text>
                       <Text className="text-primary text-sm font-medium">
                         {selectedBooking.duration} minutes
                       </Text>
                     </View>
-                    
+
                     <View className="flex-row justify-between">
                       <Text className="text-secondary text-sm">Price</Text>
                       <Text className="text-primary text-lg font-bold">
@@ -706,7 +615,7 @@ const BookingManagementScreen = ({ navigation }) => {
                   <Text className="text-primary text-base font-semibold mb-3">
                     Status Timeline
                   </Text>
-                  
+
                   <View className="space-y-2">
                     <View className="flex-row items-center">
                       <Ionicons name="add-circle" size={16} color="#00C851" />
@@ -714,7 +623,7 @@ const BookingManagementScreen = ({ navigation }) => {
                         Booking created at {selectedBooking.createdAt}
                       </Text>
                     </View>
-                    
+
                     {selectedBooking.startedAt && (
                       <View className="flex-row items-center">
                         <Ionicons name="play-circle" size={16} color="#00C851" />
@@ -723,7 +632,7 @@ const BookingManagementScreen = ({ navigation }) => {
                         </Text>
                       </View>
                     )}
-                    
+
                     {selectedBooking.completedAt && (
                       <View className="flex-row items-center">
                         <Ionicons name="checkmark-circle" size={16} color="#00C851" />
@@ -732,7 +641,7 @@ const BookingManagementScreen = ({ navigation }) => {
                         </Text>
                       </View>
                     )}
-                    
+
                     {selectedBooking.cancelledAt && (
                       <View className="flex-row items-center">
                         <Ionicons name="close-circle" size={16} color="#dc2626" />
@@ -756,7 +665,7 @@ const BookingManagementScreen = ({ navigation }) => {
                       Call Customer
                     </Text>
                   </TouchableOpacity>
-                  
+
                   {selectedBooking.status === 'pending' && (
                     <View className="flex-row space-x-3">
                       <TouchableOpacity
@@ -768,7 +677,7 @@ const BookingManagementScreen = ({ navigation }) => {
                           Reject
                         </Text>
                       </TouchableOpacity>
-                      
+
                       <TouchableOpacity
                         onPress={() => handleBookingAction('accept', selectedBooking)}
                         activeOpacity={0.8}

@@ -16,6 +16,10 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import '../../global.css';
 import { useUser } from '../../context/UserContext';
+import { get, patch } from '../../lib/api';
+import { endpoints } from '../../config/apiConfig';
+import MapView, { Marker } from 'react-native-maps';
+import { reverseGeocode } from '../../lib/locationService';
 
 const { width, height } = Dimensions.get('window');
 
@@ -26,6 +30,7 @@ const ProfileScreen = ({ navigation }) => {
     name: user?.name || 'Guest User',
     email: user?.email || 'guest@example.com',
     phone: user?.phone || '+91 00000 00000',
+    address: user?.address || 'Address not set',
     avatar: '👨‍💼',
     roles: [user?.role?.toLowerCase() || 'carOwner'],
     primaryRole: user?.role?.toLowerCase() || 'carOwner',
@@ -39,6 +44,32 @@ const ProfileScreen = ({ navigation }) => {
   const [editMode, setEditMode] = useState(false);
   const [showRoleModal, setShowRoleModal] = useState(false);
   const [showDocumentModal, setShowDocumentModal] = useState(false);
+  // Map State
+  const [showMapModal, setShowMapModal] = useState(false);
+  const [mapRegion, setMapRegion] = useState({
+    latitude: 18.5204, // Default Pune
+    longitude: 73.8567,
+    latitudeDelta: 0.05,
+    longitudeDelta: 0.05,
+  });
+  const [selectedLocation, setSelectedLocation] = useState(null);
+
+  const handleMapPress = async (event) => {
+    const { latitude, longitude } = event.nativeEvent.coordinate;
+    setSelectedLocation({ latitude, longitude });
+
+    // Optional: Auto fetch address on tap
+    const locationData = await reverseGeocode(latitude, longitude);
+    if (locationData && locationData.address) {
+      setUserProfile(prev => ({ ...prev, address: locationData.address }));
+    }
+  };
+
+  const confirmMapLocation = () => {
+    setShowMapModal(false);
+    // Address is already updated in handleMapPress
+  };
+
   const [notifications, setNotifications] = useState(true);
   const [locationTracking, setLocationTracking] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
@@ -145,10 +176,18 @@ const ProfileScreen = ({ navigation }) => {
   };
 
   const loadUserProfile = async () => {
-    // TODO: Load user profile from AsyncStorage/API
     try {
-      // const profile = await getUserProfile();
-      // setUserProfile(profile);
+      const data = await get(endpoints.auth.me);
+      if (data && data.user) {
+        setUserProfile(prev => ({
+          ...prev,
+          name: data.user.full_name || data.user.name || prev.name,
+          email: data.user.email || prev.email,
+          phone: data.user.phone || prev.phone,
+          address: data.user.address || prev.address,
+          primaryRole: data.user.role?.toLowerCase() || prev.primaryRole,
+        }));
+      }
     } catch (error) {
       console.log('Profile load error:', error);
     }
@@ -158,8 +197,13 @@ const ProfileScreen = ({ navigation }) => {
     setIsLoading(true);
 
     try {
-      // TODO: Update user profile via API
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const payload = {
+        name: userProfile.name,
+        email: userProfile.email,
+        address: userProfile.address,
+      };
+      // We use a new endpoint for updating user profile
+      await patch('/auth/profile', payload);
 
       setEditMode(false);
       Alert.alert('Success', 'Profile updated successfully!');
@@ -451,6 +495,7 @@ const ProfileScreen = ({ navigation }) => {
                 onChangeText={(text) => setUserProfile(prev => ({ ...prev, phone: text }))}
                 className="bg-gray-50 rounded-xl px-4 py-3 text-primary text-base"
                 keyboardType="phone-pad"
+                editable={false} // Phone usually not editable directly
               />
             ) : (
               <Text className="text-primary text-base font-medium">
@@ -458,7 +503,78 @@ const ProfileScreen = ({ navigation }) => {
               </Text>
             )}
           </View>
+
+          {/* Address */}
+          <View className="mt-4">
+            <View className="flex-row justify-between items-center mb-2">
+              <Text className="text-secondary text-sm font-medium">
+                Address
+              </Text>
+              {editMode && (
+                <TouchableOpacity onPress={() => setShowMapModal(true)}>
+                  <Text className="text-accent text-sm font-semibold">Select on Map</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {editMode ? (
+              <TextInput
+                value={userProfile.address}
+                onChangeText={(text) => setUserProfile(prev => ({ ...prev, address: text }))}
+                className="bg-gray-50 rounded-xl px-4 py-3 text-primary text-base"
+                placeholder="Enter your address"
+                multiline
+              />
+            ) : (
+              <Text className="text-primary text-base font-medium">
+                {userProfile.address}
+              </Text>
+            )}
+          </View>
         </Animated.View>
+
+        {/* Map Modal */}
+        <Modal
+          visible={showMapModal}
+          animationType="slide"
+          onRequestClose={() => setShowMapModal(false)}
+        >
+          <View className="flex-1 bg-white">
+            <View className="absolute top-12 left-4 z-10">
+              <TouchableOpacity
+                onPress={() => setShowMapModal(false)}
+                className="bg-white p-3 rounded-full shadow-lg"
+              >
+                <Ionicons name="arrow-back" size={24} color="#1A1B23" />
+              </TouchableOpacity>
+            </View>
+
+            <MapView
+              className="flex-1"
+              initialRegion={mapRegion}
+              onPress={handleMapPress}
+            >
+              {selectedLocation && (
+                <Marker coordinate={selectedLocation} />
+              )}
+            </MapView>
+
+            <View className="absolute bottom-10 left-6 right-6">
+              <View className="bg-white p-4 rounded-2xl shadow-xl mb-4">
+                <Text className="text-xs text-secondary mb-1">Selected Location</Text>
+                <Text className="text-primary font-medium" numberOfLines={2}>
+                  {userProfile.address || "Tap map to select location"}
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={confirmMapLocation}
+                className="bg-accent py-4 rounded-xl items-center shadow-lg"
+              >
+                <Text className="text-white font-bold text-lg">Confirm Location</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
 
         {/* Quick Settings */}
         <Animated.View
@@ -793,7 +909,7 @@ const ProfileScreen = ({ navigation }) => {
           </Animated.View>
         </View>
       </Modal>
-    </View>
+    </View >
   );
 };
 

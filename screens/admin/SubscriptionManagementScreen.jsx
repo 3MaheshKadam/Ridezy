@@ -6,7 +6,7 @@ import {
   ScrollView,
   Animated,
   Dimensions,
-  
+
   StatusBar,
   Alert,
   Modal,
@@ -16,6 +16,8 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
 import '../../global.css';
+import { get, post, put, del } from '../../lib/api';
+import { endpoints } from '../../config/apiConfig';
 
 const { width, height } = Dimensions.get('window');
 
@@ -37,106 +39,43 @@ const SubscriptionManagementScreen = ({ navigation }) => {
   const slideUpAnim = useRef(new Animated.Value(30)).current;
   const modalSlideAnim = useRef(new Animated.Value(height)).current;
 
-  // Mock subscription plans data
-  const [ownerPlans, setOwnerPlans] = useState([
-    {
-      id: '1',
-      name: 'Basic Plan',
-      price: 299,
-      duration: 'monthly',
-      description: 'Perfect for occasional car wash needs',
-      features: ['2 car washes per month', 'Basic wash only', 'No detailing', 'Standard support'],
-      subscribers: 45,
-      revenue: 13455,
-      isActive: true,
-      color: '#3B82F6',
-    },
-    {
-      id: '2',
-      name: 'Premium Plan',
-      price: 599,
-      duration: 'monthly',
-      description: 'Best value for regular car care',
-      features: ['4 car washes per month', 'Premium wash included', 'Interior cleaning', 'Priority support', '10% discount on detailing'],
-      subscribers: 78,
-      revenue: 46722,
-      isActive: true,
-      color: '#8B5CF6',
-      popular: true,
-    },
-    {
-      id: '3',
-      name: 'Elite Plan',
-      price: 999,
-      duration: 'monthly',
-      description: 'Ultimate car care package',
-      features: ['Unlimited car washes', 'Premium wash & detailing', 'Free interior cleaning', '24/7 priority support', 'Free pickup & drop', '20% discount on ceramic coating'],
-      subscribers: 32,
-      revenue: 31968,
-      isActive: true,
-      color: '#F59E0B',
-    },
-  ]);
+  // Plans State
+  const [plans, setPlans] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const [driverPlans, setDriverPlans] = useState([
-    {
-      id: '4',
-      name: 'Starter Plan',
-      price: 199,
-      duration: 'monthly',
-      description: 'Get started with driver services',
-      features: ['5% platform commission', 'Up to 50 trips/month', 'Basic analytics', 'Standard support'],
-      subscribers: 34,
-      revenue: 6766,
-      isActive: true,
-      color: '#10B981',
-    },
-    {
-      id: '5',
-      name: 'Professional Plan',
-      price: 399,
-      duration: 'monthly',
-      description: 'For active professional drivers',
-      features: ['3% platform commission', 'Unlimited trips', 'Advanced analytics', 'Priority booking', 'Marketing support'],
-      subscribers: 56,
-      revenue: 22344,
-      isActive: true,
-      color: '#8B5CF6',
-      popular: true,
-    },
-  ]);
-
-  const [carwashPlans, setCarwashPlans] = useState([
-    {
-      id: '6',
-      name: 'Basic Center Plan',
-      price: 999,
-      duration: 'monthly',
-      description: 'Essential tools for your car wash business',
-      features: ['10% platform commission', 'Up to 100 bookings/month', 'Basic dashboard', 'Email support'],
-      subscribers: 12,
-      revenue: 11988,
-      isActive: true,
-      color: '#3B82F6',
-    },
-    {
-      id: '7',
-      name: 'Business Plan',
-      price: 1999,
-      duration: 'monthly',
-      description: 'Advanced features for growing centers',
-      features: ['7% platform commission', 'Unlimited bookings', 'Advanced analytics', 'Customer management', 'Marketing tools', 'Priority support'],
-      subscribers: 18,
-      revenue: 35982,
-      isActive: true,
-      color: '#8B5CF6',
-      popular: true,
-    },
-  ]);
+  // Derived state for tabs
+  const ownerPlans = plans.filter(p => p.role === 'OWNER' || !p.role || p.role === 'owner'); // Backwards compat or new field
+  const driverPlans = plans.filter(p => p.role === 'DRIVER');
+  const carwashPlans = plans.filter(p => p.role === 'CENTER');
 
   useEffect(() => {
     startAnimations();
+    fetchPlans();
   }, []);
+
+  const fetchPlans = async () => {
+    setIsLoading(true);
+    try {
+      const fetchedPlans = await get(endpoints.admin.plans);
+      if (fetchedPlans) {
+        // Backend returns simple plan objects. Map them to UI model if needed, 
+        // but let's assume direct usage. Add color/revenue defaults if missing.
+        const plansWithDefaults = fetchedPlans.map(p => ({
+          ...p,
+          id: p._id,
+          color: p.color || '#3B82F6',
+          revenue: p.revenue || 0,
+          subscribers: p.subscribers || 0,
+        }));
+        setPlans(plansWithDefaults);
+      }
+    } catch (error) {
+      console.error("Failed to fetch plans", error);
+      Alert.alert("Error", "Could not load subscription plans");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const startAnimations = () => {
     Animated.parallel([
@@ -183,7 +122,7 @@ const SubscriptionManagementScreen = ({ navigation }) => {
     setPlanDescription(plan.description);
     setPlanFeatures(plan.features);
     setIsActive(plan.isActive);
-    
+
     setShowEditPlanModal(true);
     Animated.timing(modalSlideAnim, {
       toValue: 0,
@@ -242,36 +181,31 @@ const SubscriptionManagementScreen = ({ navigation }) => {
       return;
     }
 
-    try {
-      // TODO: API call to create plan
-      await new Promise(resolve => setTimeout(resolve, 1000));
+    // Determine role based on active tab
+    let role = 'OWNER';
+    if (activeTab === 'driver') role = 'DRIVER';
+    if (activeTab === 'carwash') role = 'CENTER';
 
-      const newPlan = {
-        id: Date.now().toString(),
+    try {
+      const payload = {
         name: planName,
         price: parseFloat(planPrice),
         duration: planDuration,
         description: planDescription,
         features: filteredFeatures,
-        subscribers: 0,
-        revenue: 0,
         isActive: isActive,
-        color: '#10B981',
+        role: role, // Backend needs to know which type of plan this is
+        color: '#10B981', // Default color for new plans
       };
 
-      // Add to appropriate list based on active tab
-      if (activeTab === 'owner') {
-        setOwnerPlans([...ownerPlans, newPlan]);
-      } else if (activeTab === 'driver') {
-        setDriverPlans([...driverPlans, newPlan]);
-      } else {
-        setCarwashPlans([...carwashPlans, newPlan]);
-      }
+      await post(endpoints.admin.plans, payload);
 
       closeAddPlanModal();
+      fetchPlans(); // Refresh list
       Alert.alert('Success', 'Subscription plan created successfully!');
     } catch (error) {
       Alert.alert('Error', 'Failed to create plan. Please try again.');
+      console.error(error);
     }
   };
 
@@ -288,32 +222,26 @@ const SubscriptionManagementScreen = ({ navigation }) => {
     }
 
     try {
-      // TODO: API call to update plan
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      const updatedPlan = {
-        ...selectedPlan,
+      const payload = {
+        _id: selectedPlan.id, // Backend checks for _id in body
         name: planName,
         price: parseFloat(planPrice),
         duration: planDuration,
         description: planDescription,
         features: filteredFeatures,
         isActive: isActive,
+        // Role is usually not changeable, but we could send it
       };
 
-      // Update in appropriate list
-      if (activeTab === 'owner') {
-        setOwnerPlans(ownerPlans.map(p => p.id === selectedPlan.id ? updatedPlan : p));
-      } else if (activeTab === 'driver') {
-        setDriverPlans(driverPlans.map(p => p.id === selectedPlan.id ? updatedPlan : p));
-      } else {
-        setCarwashPlans(carwashPlans.map(p => p.id === selectedPlan.id ? updatedPlan : p));
-      }
+      // We use PUT as per backend implementation
+      await put(endpoints.admin.plans, payload);
 
       closeEditPlanModal();
+      fetchPlans(); // Refresh
       Alert.alert('Success', 'Plan updated successfully!');
     } catch (error) {
       Alert.alert('Error', 'Failed to update plan. Please try again.');
+      console.error(error);
     }
   };
 
@@ -328,20 +256,13 @@ const SubscriptionManagementScreen = ({ navigation }) => {
           style: 'destructive',
           onPress: async () => {
             try {
-              // TODO: API call to delete plan
-              await new Promise(resolve => setTimeout(resolve, 1000));
-
-              if (activeTab === 'owner') {
-                setOwnerPlans(ownerPlans.filter(p => p.id !== plan.id));
-              } else if (activeTab === 'driver') {
-                setDriverPlans(driverPlans.filter(p => p.id !== plan.id));
-              } else {
-                setCarwashPlans(carwashPlans.filter(p => p.id !== plan.id));
-              }
-
+              // Delete uses query param id
+              await del(`${endpoints.admin.plans}?id=${plan.id}`);
+              fetchPlans();
               Alert.alert('Deleted', 'Plan deleted successfully.');
             } catch (error) {
               Alert.alert('Error', 'Failed to delete plan.');
+              console.error(error);
             }
           },
         },
@@ -376,14 +297,12 @@ const SubscriptionManagementScreen = ({ navigation }) => {
           </View>
         </View>
         <View
-          className={`px-2 py-1 rounded-full ${
-            plan.isActive ? 'bg-green-50' : 'bg-gray-100'
-          }`}
+          className={`px-2 py-1 rounded-full ${plan.isActive ? 'bg-green-50' : 'bg-gray-100'
+            }`}
         >
           <Text
-            className={`text-xs font-semibold ${
-              plan.isActive ? 'text-green-600' : 'text-gray-500'
-            }`}
+            className={`text-xs font-semibold ${plan.isActive ? 'text-green-600' : 'text-gray-500'
+              }`}
           >
             {plan.isActive ? 'Active' : 'Inactive'}
           </Text>
@@ -724,15 +643,13 @@ const SubscriptionManagementScreen = ({ navigation }) => {
         <View className="flex-row bg-gray-100 rounded-2xl p-1">
           <TouchableOpacity
             onPress={() => setActiveTab('owner')}
-            className={`flex-1 py-2 rounded-xl ${
-              activeTab === 'owner' ? 'bg-white' : ''
-            }`}
+            className={`flex-1 py-2 rounded-xl ${activeTab === 'owner' ? 'bg-white' : ''
+              }`}
             activeOpacity={0.8}
           >
             <Text
-              className={`text-xs font-semibold text-center ${
-                activeTab === 'owner' ? 'text-primary' : 'text-secondary'
-              }`}
+              className={`text-xs font-semibold text-center ${activeTab === 'owner' ? 'text-primary' : 'text-secondary'
+                }`}
             >
               Car Owners
             </Text>
@@ -740,15 +657,13 @@ const SubscriptionManagementScreen = ({ navigation }) => {
 
           <TouchableOpacity
             onPress={() => setActiveTab('driver')}
-            className={`flex-1 py-2 rounded-xl ${
-              activeTab === 'driver' ? 'bg-white' : ''
-            }`}
+            className={`flex-1 py-2 rounded-xl ${activeTab === 'driver' ? 'bg-white' : ''
+              }`}
             activeOpacity={0.8}
           >
             <Text
-              className={`text-xs font-semibold text-center ${
-                activeTab === 'driver' ? 'text-primary' : 'text-secondary'
-              }`}
+              className={`text-xs font-semibold text-center ${activeTab === 'driver' ? 'text-primary' : 'text-secondary'
+                }`}
             >
               Drivers
             </Text>
@@ -756,15 +671,13 @@ const SubscriptionManagementScreen = ({ navigation }) => {
 
           <TouchableOpacity
             onPress={() => setActiveTab('carwash')}
-            className={`flex-1 py-2 rounded-xl ${
-              activeTab === 'carwash' ? 'bg-white' : ''
-            }`}
+            className={`flex-1 py-2 rounded-xl ${activeTab === 'carwash' ? 'bg-white' : ''
+              }`}
             activeOpacity={0.8}
           >
             <Text
-              className={`text-xs font-semibold text-center ${
-                activeTab === 'carwash' ? 'text-primary' : 'text-secondary'
-              }`}
+              className={`text-xs font-semibold text-center ${activeTab === 'carwash' ? 'text-primary' : 'text-secondary'
+                }`}
             >
               Car Wash
             </Text>

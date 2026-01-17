@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext, useState, useEffect } from "react"
+import React, { createContext, useContext, useState, useEffect } from "react"
 import * as SecureStore from 'expo-secure-store';
 import { get } from '../lib/api';
 import { endpoints } from '../config/apiConfig';
@@ -19,32 +19,6 @@ export const UserProvider = ({ children }) => {
   const [user, setUser] = useState(null)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [currentBooking, setCurrentBooking] = useState(null)
-  const [notifications, setNotifications] = useState([
-    {
-      id: 1,
-      title: "Booking Confirmed",
-      message: "Your car service has been confirmed for tomorrow at 10:00 AM",
-      time: "2 hours ago",
-      read: false,
-      type: "booking",
-    },
-    {
-      id: 2,
-      title: "Partner Assigned",
-      message: "John Doe has been assigned as your service partner",
-      time: "1 day ago",
-      read: false,
-      type: "partner",
-    },
-    {
-      id: 3,
-      title: "Payment Successful",
-      message: "Payment of ₹2,500 has been processed successfully",
-      time: "2 days ago",
-      read: true,
-      type: "payment",
-    },
-  ])
 
   useEffect(() => {
     checkUser();
@@ -54,7 +28,6 @@ export const UserProvider = ({ children }) => {
     try {
       const token = await SecureStore.getItemAsync('userToken');
       if (token) {
-        // Fetch user profile
         const userData = await get(endpoints.auth.me);
         if (userData) {
           setUser(userData);
@@ -63,19 +36,13 @@ export const UserProvider = ({ children }) => {
       }
     } catch (error) {
       console.log('User restoration failed:', error);
-      // Optional: Clear invalid token
-      // await SecureStore.deleteItemAsync('userToken');
     }
   };
 
   const login = (userData, token) => {
-    console.log('UserContext Login:', JSON.stringify(userData, null, 2));
-    if (userData?.vehicleStatus) console.log('User Vehicle Status:', userData.vehicleStatus);
     setUser(userData)
     setIsAuthenticated(true)
-    if (token) {
-      SecureStore.setItemAsync('userToken', token);
-    }
+    if (token) SecureStore.setItemAsync('userToken', token);
   }
 
   const logout = async () => {
@@ -89,26 +56,16 @@ export const UserProvider = ({ children }) => {
     setUser((prev) => ({ ...prev, ...profileData }))
   }
 
-  const addNotification = (notification) => {
-    setNotifications((prev) => [{ ...notification, id: Date.now(), time: "Just now", read: false }, ...prev])
-  }
-
-  const markNotificationAsRead = (id) => {
-    setNotifications((prev) => prev.map((notif) => (notif.id === id ? { ...notif, read: true } : notif)))
-  }
-
-  const value = {
+  // useMemo to prevent unnecessary re-renders of consumers
+  const value = React.useMemo(() => ({
     user,
     isAuthenticated,
     currentBooking,
-    notifications,
     login,
     logout,
     updateProfile,
     setCurrentBooking,
-    addNotification,
-    markNotificationAsRead,
-  }
+  }), [user, isAuthenticated, currentBooking]);
 
   return <UserContext.Provider value={value}>{children}</UserContext.Provider>
 }

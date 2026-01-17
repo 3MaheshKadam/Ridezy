@@ -11,6 +11,7 @@ import {
   Modal,
   TextInput,
   Image,
+  Linking,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
@@ -606,6 +607,36 @@ const CarWashApprovalScreen = ({ navigation }) => {
                         </View>
                       ))}
                     </View>
+                  </View>
+
+                  {/* Documents */}
+                  <View className="bg-gray-50 rounded-2xl p-4 mb-6">
+                    <Text className="text-primary text-base font-bold mb-3">
+                      Documents
+                    </Text>
+                    {selectedCenter.documents?.license ? (
+                      <TouchableOpacity
+                        onPress={() => Linking.openURL(selectedCenter.documents.license)}
+                        className="flex-row items-center bg-white p-3 rounded-xl border border-gray-200"
+                      >
+                        <View className="w-10 h-10 bg-red-50 rounded-lg justify-center items-center mr-3">
+                          <Ionicons name="document-text" size={24} color="#ef4444" />
+                        </View>
+                        <View className="flex-1">
+                          <Text className="text-primary text-sm font-semibold">
+                            Business License
+                          </Text>
+                          <Text className="text-secondary text-xs">
+                            Tap to view document
+                          </Text>
+                        </View>
+                        <Ionicons name="open-outline" size={20} color="#6C757D" />
+                      </TouchableOpacity>
+                    ) : (
+                      <Text className="text-secondary text-sm italic">
+                        No documents uploaded
+                      </Text>
+                    )}
                   </View>
 
                   {/* Location */}

@@ -10,11 +10,14 @@ import {
   Alert,
   RefreshControl,
   Switch,
+  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import '../../global.css';
 import { useUser } from '../../context/UserContext';
+import { get } from '../../lib/api';
+import { endpoints } from '../../config/apiConfig';
 
 const { width, height } = Dimensions.get('window');
 
@@ -23,56 +26,90 @@ const DriverDashboardScreen = ({ navigation }) => {
   const [isOnline, setIsOnline] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState('today');
   const [refreshing, setRefreshing] = useState(false);
-  const [pendingTrips, setPendingTrips] = useState(2);
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState(null);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideUpAnim = useRef(new Animated.Value(30)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
-  // Driver data from context or fallbacks
-  const driverProfile = {
-    name: user?.name || user?.fullName || user?.full_name || 'Driver',
-    avatar: user?.avatar || '👨‍💼', // TODO: Use real avatar URL if available
-    rating: user?.rating || 4.8,
-    totalTrips: user?.totalTrips || 342,
-    memberSince: user?.createdAt ? new Date(user.createdAt).getFullYear().toString() : '2023',
-    vehicleNumber: user?.vehicle?.number || 'MH 27 AB 1234',
-    vehicleName: user?.vehicle?.name || 'Honda City',
-    verificationStatus: user?.status === 'ACTIVE' ? 'verified' : 'pending',
+  // Fallback data
+  const defaultStats = {
+    performance: {
+      today: { earnings: 0, trips: 0, distance: 0, hours: 0, acceptanceRate: 100, cancellationRate: 0, avgRating: 5.0, completionRate: 100 },
+      week: { earnings: 0, trips: 0, distance: 0, hours: 0, acceptanceRate: 100, cancellationRate: 0, avgRating: 5.0, completionRate: 100 },
+      month: { earnings: 0, trips: 0, distance: 0, hours: 0, acceptanceRate: 100, cancellationRate: 0, avgRating: 5.0, completionRate: 100 },
+    },
+    recentActivity: []
   };
 
-  // Performance data for different periods
-  const performanceData = {
-    today: {
-      earnings: 1250,
-      trips: 8,
-      distance: 147,
-      hours: 6.5,
-      acceptanceRate: 92,
-      cancellationRate: 3,
-      avgRating: 4.9,
-      completionRate: 97,
-    },
-    week: {
-      earnings: 8750,
-      trips: 56,
-      distance: 1023,
-      hours: 45,
-      acceptanceRate: 89,
-      cancellationRate: 5,
-      avgRating: 4.8,
-      completionRate: 95,
-    },
-    month: {
-      earnings: 35200,
-      trips: 234,
-      distance: 4156,
-      hours: 186,
-      acceptanceRate: 91,
-      cancellationRate: 4,
-      avgRating: 4.8,
-      completionRate: 96,
-    },
+  const performanceData = stats?.performance || defaultStats.performance;
+  const recentActivities = stats?.recentActivity || [];
+  const pendingTrips = stats?.pendingTrips || 0;
+
+  const driverProfile = {
+    name: user?.name || user?.fullName || 'Driver',
+    avatar: user?.avatar || '👨‍💼',
+    rating: stats?.rating || 5.0,
+    totalTrips: stats?.totalTrips || 0,
+    memberSince: user?.createdAt ? new Date(user.createdAt).getFullYear().toString() : '2024',
+    vehicleNumber: user?.vehicle?.plateNumber || 'MH XX XX 1234',
+    vehicleName: user?.vehicle?.model || 'Vehicle',
+    verificationStatus: user?.status === 'active' ? 'verified' : 'pending',
+  };
+
+  useEffect(() => {
+    fetchStats();
+    startAnimations();
+  }, []);
+
+  const fetchStats = async () => {
+    try {
+      const data = await get(endpoints.drivers.stats);
+      setStats(data);
+    } catch (error) {
+      console.error("Failed to fetch driver stats:", error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchStats();
+  };
+
+  const startAnimations = () => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideUpAnim, {
+        toValue: 0,
+        duration: 600,
+        delay: 200,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    // Pulse animation for online status
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.2,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
   };
 
   // Quick actions for drivers
@@ -151,45 +188,7 @@ const DriverDashboardScreen = ({ navigation }) => {
     },
   ];
 
-  // Recent activities
-  const recentActivities = [
-    {
-      id: '1',
-      type: 'trip_completed',
-      title: 'Trip completed',
-      subtitle: 'Airport pickup - ₹450 earned',
-      time: '15 min ago',
-      icon: 'checkmark-circle',
-      iconBg: '#00C851',
-    },
-    {
-      id: '2',
-      type: 'rating_received',
-      title: '5-star rating received',
-      subtitle: 'Great service by customer Priya',
-      time: '1 hour ago',
-      icon: 'star',
-      iconBg: '#F59E0B',
-    },
-    {
-      id: '3',
-      type: 'bonus_earned',
-      title: 'Peak hour bonus',
-      subtitle: 'Extra ₹50 for morning rush',
-      time: '2 hours ago',
-      icon: 'gift',
-      iconBg: '#00C851',
-    },
-    {
-      id: '4',
-      type: 'trip_completed',
-      title: 'Long trip completed',
-      subtitle: 'Amravati to Nagpur - ₹1200',
-      time: '5 hours ago',
-      icon: 'car',
-      iconBg: '#3B82F6',
-    },
-  ];
+
 
   const periods = [
     { id: 'today', label: 'Today' },
@@ -201,44 +200,9 @@ const DriverDashboardScreen = ({ navigation }) => {
     startAnimations();
   }, []);
 
-  const startAnimations = () => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 800,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideUpAnim, {
-        toValue: 0,
-        duration: 600,
-        delay: 200,
-        useNativeDriver: true,
-      }),
-    ]).start();
 
-    // Pulse animation for online status
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1.2,
-          duration: 1000,
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 1000,
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
-  };
 
-  const onRefresh = async () => {
-    setRefreshing(true);
-    // TODO: Refresh driver data from API
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    setRefreshing(false);
-  };
+
 
   const toggleOnlineStatus = () => {
     setIsOnline(!isOnline);

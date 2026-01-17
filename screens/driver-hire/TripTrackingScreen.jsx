@@ -13,14 +13,22 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import '../../global.css';
 import { get } from '../../lib/api';
-import { useIsFocused } from '@react-navigation/native';
+import { endpoints } from '../../config/apiConfig';
+import { useUser } from '../../context/UserContext';
 
 const { width } = Dimensions.get('window');
 
 const TripTrackingScreen = ({ navigation, route }) => {
   const { user } = useUser();
-  const isFocused = useIsFocused();
-  const { tripId, tripDetails } = route.params;
+  const { tripId, tripDetails } = route.params || {};
+
+  // If parameters are missing, handle gracefully (e.g., show loading or go back)
+  useEffect(() => {
+    if (!tripId || !tripDetails) {
+      // Optional: Log error or handle it
+      console.log("TripTrackingScreen: Missing tripId or tripDetails");
+    }
+  }, [tripId, tripDetails]);
   const [status, setStatus] = useState('OPEN'); // OPEN, ACCEPTED, IN_PROGRESS, COMPLETED
   const [driver, setDriver] = useState(null);
   const [owner, setOwner] = useState(null);
@@ -34,16 +42,25 @@ const TripTrackingScreen = ({ navigation, route }) => {
 
   useEffect(() => {
     startAnimations();
-  }, []);
 
-  useEffect(() => {
-    if (isFocused) {
+    // Start polling when component mounts
+    startPolling();
+
+    // Add navigation listeners for focus/blur integration
+    const unsubscribeFocus = navigation.addListener('focus', () => {
       startPolling();
-    } else {
+    });
+
+    const unsubscribeBlur = navigation.addListener('blur', () => {
       stopPolling();
-    }
-    return () => stopPolling();
-  }, [isFocused]);
+    });
+
+    return () => {
+      stopPolling();
+      unsubscribeFocus();
+      unsubscribeBlur();
+    };
+  }, [navigation]);
 
   const startAnimations = () => {
     Animated.parallel([
@@ -79,11 +96,11 @@ const TripTrackingScreen = ({ navigation, route }) => {
     try {
       const response = await get(endpoints.trips.status(tripId));
       if (response && response.trip) {
-        const { status: newStatus, driverId, ownerId } = response.trip;
+        const { status: newStatus, driverId, ownerId, vehicle } = response.trip;
         setStatus(newStatus);
 
         if (newStatus !== 'OPEN') {
-          if (driverId && !isDriver) setDriver(driverId);
+          if (driverId && !isDriver) setDriver({ ...driverId, vehicle });
           if (ownerId && isDriver) setOwner(ownerId);
         }
 
@@ -103,6 +120,14 @@ const TripTrackingScreen = ({ navigation, route }) => {
     } else {
       Alert.alert('Info', 'Contact number not available.');
     }
+  };
+
+  const handleNavigate = () => {
+    // Open Google Maps with pickup coordinates or address
+    // Prefer coordinates if available, else address
+    const query = tripDetails.pickupCoords ? `${tripDetails.pickupCoords.lat},${tripDetails.pickupCoords.lng}` : tripDetails.pickupLocation || tripDetails.pickup;
+    const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+    Linking.openURL(url);
   };
 
   const handleCancelTrip = () => {
@@ -131,16 +156,19 @@ const TripTrackingScreen = ({ navigation, route }) => {
       );
     }
 
-    if (status === 'ACCEPTED') {
-      // Driver might be null initially if populate failed or polling hasn't updated
+    if (status === 'ACCEPTED' || status === 'IN_PROGRESS') {
+      // Driver data from state (populated from backend)
       const driverName = driver?.full_name || driver?.name || 'Driver';
       const driverPhone = driver?.phone || 'Contact not available';
-      const driverTrips = driver?.trips_count || 0;
-      const driverRating = driver?.rating || 5.0;
+      const driverRating = driver?.rating || 4.8; // Default if not in populate
+      const vehicleName = driver?.vehicle ? `${driver.vehicle.make} ${driver.vehicle.model}` : 'Vehicle details pending';
+      const vehicleNumber = driver?.vehicle?.plateNumber || 'MH XX XX XXXX';
 
       return (
         <View className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 mb-6">
-          <Text className="text-accent text-lg font-bold mb-4 text-center">Driver On The Way!</Text>
+          <Text className="text-accent text-lg font-bold mb-4 text-center">
+            {status === 'ACCEPTED' ? 'Driver On The Way!' : 'Trip In Progress'}
+          </Text>
 
           <View className="flex-row items-center mb-6">
             <View className="w-16 h-16 bg-gray-200 rounded-full overflow-hidden mr-4">
@@ -153,9 +181,12 @@ const TripTrackingScreen = ({ navigation, route }) => {
               <View className="flex-row items-center mt-1">
                 <Ionicons name="star" size={16} color="#FFD700" />
                 <Text className="text-primary text-sm font-semibold ml-1">{driverRating}</Text>
-                <Text className="text-secondary text-xs ml-1">• {driverTrips} trips</Text>
+                <Text className="text-secondary text-xs ml-1">• Verified Driver</Text>
               </View>
-              <Text className="text-secondary text-sm mt-1">{driverPhone}</Text>
+              <View className="mt-2 bg-gray-50 p-2 rounded-lg">
+                <Text className="text-primary font-semibold">{vehicleName}</Text>
+                <Text className="text-secondary text-xs">{vehicleNumber}</Text>
+              </View>
             </View>
             <TouchableOpacity
               onPress={handleCall}
@@ -184,7 +215,7 @@ const TripTrackingScreen = ({ navigation, route }) => {
             </View>
           </View>
           <View className="flex-1">
-            <Text className="text-primary text-xl font-bold">Passenger</Text>
+            <Text className="text-primary text-xl font-bold">{owner?.full_name || 'Passenger'}</Text>
             <Text className="text-secondary text-sm mt-1">{owner?.phone || 'Contact Passenger'}</Text>
           </View>
           <TouchableOpacity
@@ -195,10 +226,10 @@ const TripTrackingScreen = ({ navigation, route }) => {
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity className="bg-blue-500 py-3 rounded-xl items-center mb-3">
+        <TouchableOpacity onPress={handleNavigate} className="bg-blue-500 py-3 rounded-xl items-center mb-3">
           <View className="flex-row items-center">
             <Ionicons name="navigate" size={20} color="white" />
-            <Text className="text-white font-bold ml-2">Navigate</Text>
+            <Text className="text-white font-bold ml-2">Navigate to Pickup</Text>
           </View>
         </TouchableOpacity>
 
