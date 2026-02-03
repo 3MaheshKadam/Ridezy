@@ -108,7 +108,7 @@ const NotificationsScreen = ({ navigation }) => {
     }
 
     // Mark notification as read
-    markAsRead(notification.id);
+    markAsRead(notification._id);
   };
 
   // Removed duplicate markAsRead and markAllAsRead - now using context
@@ -177,7 +177,7 @@ const NotificationsScreen = ({ navigation }) => {
         if (item.actionable) {
           handleNotificationAction(item);
         } else {
-          markAsRead(item.id);
+          markAsRead(item._id);
         }
       }}
       activeOpacity={0.8}

@@ -12,15 +12,21 @@ import {
   RefreshControl,
   Switch,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import '../../global.css';
+import { get, patch, post } from '../../lib/api';
+import { endpoints } from '../../config/apiConfig';
 
 const { width, height } = Dimensions.get('window');
 
+import { useDriverStatus } from '../../hooks/useDriverStatus';
+
 const DriverTripsScreen = ({ navigation }) => {
   const [selectedTab, setSelectedTab] = useState('available');
-  const [isOnline, setIsOnline] = useState(true);
+  const { isOnline, fetchStatus: fetchDriverStatus, toggleStatus: toggleOnlineStatus } = useDriverStatus();
+  // const [isOnline, setIsOnline] = useState(true); // Removed local state
   const [refreshing, setRefreshing] = useState(false);
   const [todayStats, setTodayStats] = useState({
     totalEarnings: 1250,
@@ -35,133 +41,99 @@ const DriverTripsScreen = ({ navigation }) => {
   const slideUpAnim = useRef(new Animated.Value(30)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
-  // Mock trips data
-  const tripsData = {
-    available: [
-      {
-        id: '1',
-        customerName: 'Rajesh Kumar',
-        customerAvatar: '👨',
-        customerRating: 4.7,
-        pickupLocation: 'Rajkamal Square, Amravati',
-        dropoffLocation: 'Amravati Airport',
-        distance: 18.5,
-        estimatedTime: 35,
-        fare: 450,
-        tripType: 'oneway',
-        requestTime: '2 min ago',
-        paymentMethod: 'Cash',
-        specialInstructions: 'Airport pickup, please be on time',
-      },
-      {
-        id: '2',
-        customerName: 'Priya Patel',
-        customerAvatar: '👩',
-        customerRating: 4.9,
-        pickupLocation: 'Camp Area, Amravati',
-        dropoffLocation: 'Railway Station',
-        distance: 8.2,
-        estimatedTime: 20,
-        fare: 200,
-        tripType: 'oneway',
-        requestTime: '5 min ago',
-        paymentMethod: 'UPI',
-        specialInstructions: '',
-      },
-      {
-        id: '3',
-        customerName: 'Amit Sharma',
-        customerAvatar: '👨‍💼',
-        customerRating: 4.6,
-        pickupLocation: 'Badnera Road',
-        dropoffLocation: 'Medical College',
-        distance: 12.3,
-        estimatedTime: 25,
-        fare: 320,
-        tripType: 'roundtrip',
-        requestTime: '7 min ago',
-        paymentMethod: 'Card',
-        specialInstructions: 'Round trip, wait time 30 minutes',
-      },
-    ],
-    ongoing: [
-      {
-        id: '4',
-        customerName: 'Sneha Desai',
-        customerAvatar: '👩‍💻',
-        customerPhone: '+91 98765 43210',
-        pickupLocation: 'Hotel Rajkamal',
-        dropoffLocation: 'SGBAU University',
-        distance: 15.2,
-        estimatedTime: 30,
-        fare: 380,
-        tripType: 'oneway',
-        startTime: '2:15 PM',
-        progress: 65,
-        currentLocation: 'Near Kathora Chowk',
-        paymentMethod: 'UPI',
-      },
-    ],
-    completed: [
-      {
-        id: '5',
-        customerName: 'Vikash Singh',
-        customerAvatar: '👨‍🎓',
-        pickupLocation: 'Central Mall',
-        dropoffLocation: 'Shegaon Road',
-        distance: 22.1,
-        fare: 520,
-        tripType: 'oneway',
-        completedTime: '1:45 PM',
-        duration: 42,
-        customerRating: 5,
-        tip: 50,
-        paymentMethod: 'Cash',
-      },
-      {
-        id: '6',
-        customerName: 'Anjali Mehta',
-        customerAvatar: '👩‍🔬',
-        pickupLocation: 'Collectorate',
-        dropoffLocation: 'Rajapeth',
-        distance: 6.8,
-        fare: 180,
-        tripType: 'oneway',
-        completedTime: '11:20 AM',
-        duration: 18,
-        customerRating: 4,
-        tip: 0,
-        paymentMethod: 'UPI',
-      },
-      {
-        id: '7',
-        customerName: 'Rohan Joshi',
-        customerAvatar: '👨‍⚕️',
-        pickupLocation: 'Bus Stand',
-        dropoffLocation: 'Chandur Railway',
-        distance: 35.4,
-        fare: 680,
-        tripType: 'oneway',
-        completedTime: '9:30 AM',
-        duration: 55,
-        customerRating: 5,
-        tip: 20,
-        paymentMethod: 'Card',
-      },
-    ],
-    cancelled: [
-      {
-        id: '8',
-        customerName: 'Manish Gupta',
-        customerAvatar: '👨‍🏫',
-        pickupLocation: 'Cotton Market',
-        dropoffLocation: 'Dharampeth',
-        fare: 290,
-        cancelledTime: '10:15 AM',
-        cancellationReason: 'Customer cancelled',
-        cancellationFee: 25,
-      },
-    ],
+  // State for trips
+  const [tripsData, setTripsData] = useState({
+    available: [],
+    ongoing: [],
+    completed: [],
+    cancelled: []
+  });
+
+  const fetchTrips = async () => {
+    setRefreshing(true);
+    try {
+      // 1. Fetch Stats
+      try {
+        const statsRes = await get(endpoints.drivers.stats);
+        if (statsRes?.performance?.today) {
+          const today = statsRes.performance.today;
+          setTodayStats({
+            totalEarnings: today.earnings || 0,
+            completedTrips: today.trips || 0,
+            totalDistance: today.distance || 0,
+            totalHours: today.hours || 0,
+            rating: today.avgRating || 0,
+            acceptanceRate: today.acceptanceRate || 0
+          });
+        }
+      } catch (e) {
+        console.log("Stats fetch error", e);
+      }
+
+      // 2. Fetch Available Trips (Feed)
+      let availableTrips = [];
+      try {
+        const feedRes = await get(endpoints.trips.feed);
+        if (feedRes?.trips) {
+          availableTrips = feedRes.trips.map(t => ({
+            ...t,
+            id: t._id,
+            customerName: t.ownerId?.name || 'Customer',
+            customerAvatar: t.ownerId?.avatar || '👤',
+            customerRating: 5.0, // Mock
+            fare: t.price,
+            requestTime: new Date(t.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            paymentMethod: 'Cash', // Mock
+            estimatedTime: 20 // Mock
+          }));
+        }
+      } catch (e) {
+        console.log("Feed fetch error", e);
+      }
+
+      // 3. Fetch My History
+      let historyTrips = [];
+      try {
+        const historyRes = await get(endpoints.trips.history);
+        if (historyRes?.trips) {
+          historyTrips = historyRes.trips.map(t => ({
+            ...t,
+            id: t._id,
+            customerName: t.ownerId?.name || 'Customer',
+            customerAvatar: t.ownerId?.avatar || '👤',
+            customerRating: 5.0,
+            fare: t.price,
+            completedTime: new Date(t.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            cancelledTime: new Date(t.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            startTime: new Date(t.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            progress: 50, // Mock
+            currentLocation: 'En route', // Mock
+            duration: 30, // Mock
+            paymentMethod: 'Cash'
+          }));
+        }
+      } catch (e) {
+        console.log("History fetch error", e);
+      }
+
+      // Categorize History
+      const ongoing = historyTrips.filter(t => ['ACCEPTED', 'IN_PROGRESS'].includes(t.status));
+      const completed = historyTrips.filter(t => t.status === 'COMPLETED');
+      const cancelled = historyTrips.filter(t => t.status === 'CANCELLED');
+
+      setTripsData({
+        available: availableTrips,
+        ongoing,
+        completed,
+        cancelled
+      });
+
+    } catch (error) {
+      console.error("Error fetching trips:", error);
+      Alert.alert("Error", "Failed to load trips");
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   const tabs = [
@@ -170,6 +142,13 @@ const DriverTripsScreen = ({ navigation }) => {
     { id: 'completed', label: 'Completed', count: tripsData.completed.length, color: '#00C851' },
     { id: 'cancelled', label: 'Cancelled', count: tripsData.cancelled.length, color: '#dc2626' },
   ];
+
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchTrips();
+      fetchDriverStatus(); // Sync status on focus
+    }, [fetchDriverStatus])
+  );
 
   useEffect(() => {
     startAnimations();
@@ -209,8 +188,8 @@ const DriverTripsScreen = ({ navigation }) => {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    // TODO: Refresh trips data from API
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await fetchTrips();
+    await fetchDriverStatus();
     setRefreshing(false);
   };
 
@@ -222,11 +201,21 @@ const DriverTripsScreen = ({ navigation }) => {
           `Accept trip to ${trip.dropoffLocation}?`,
           [
             { text: 'Decline', style: 'cancel' },
-            { 
-              text: 'Accept', 
-              onPress: () => {
-                // TODO: Accept trip API call
-                navigation.navigate('TripTracking', { tripDetails: trip });
+            {
+              text: 'Accept',
+              onPress: async () => {
+                try {
+                  await post(endpoints.trips.accept(trip.id));
+                  Alert.alert('Success', 'Trip accepted!', [
+                    {
+                      text: 'Go to Trip',
+                      onPress: () => navigation.navigate('TripTracking', { tripDetails: trip })
+                    }
+                  ]);
+                } catch (error) {
+                  console.error('Accept Error:', error);
+                  Alert.alert('Error', 'Failed to accept trip');
+                }
               }
             }
           ]
@@ -263,18 +252,27 @@ const DriverTripsScreen = ({ navigation }) => {
     }
   };
 
-  const updateTripStatus = (tripId, newStatus) => {
-    // TODO: Update trip status via API
-    Alert.alert('Success', `Trip ${newStatus} successfully!`);
+  const updateTripStatus = async (tripId, newStatus) => {
+    try {
+      // internal status to API status mapping
+      const statusMap = {
+        'completed': 'COMPLETED',
+        'declined': 'CANCELLED' // or DECLINED if backend supports it
+      };
+
+      const apiStatus = statusMap[newStatus] || newStatus.toUpperCase();
+
+      await patch(endpoints.trips.details(tripId), { status: apiStatus });
+
+      Alert.alert('Success', `Trip marked as ${newStatus}!`);
+      fetchTrips(); // Refresh list
+    } catch (error) {
+      console.error('Update Status Error:', error);
+      Alert.alert('Error', `Failed to mark trip as ${newStatus}`);
+    }
   };
 
-  const toggleOnlineStatus = () => {
-    setIsOnline(!isOnline);
-    Alert.alert(
-      isOnline ? 'Going Offline' : 'Going Online',
-      isOnline ? 'You will stop receiving trip requests' : 'You will start receiving trip requests'
-    );
-  };
+  // Toggle Status Logic Removed - Using Hook Instead
 
   const formatTime = (timeString) => {
     return timeString;
@@ -301,7 +299,7 @@ const DriverTripsScreen = ({ navigation }) => {
               </View>
             </View>
           </View>
-          
+
           <View className="items-end">
             <Text className="text-primary text-2xl font-bold">
               ₹{item.fare}
@@ -342,14 +340,14 @@ const DriverTripsScreen = ({ navigation }) => {
               {item.distance} km
             </Text>
           </View>
-          
+
           <View className="flex-row items-center">
             <Ionicons name="time" size={16} color="#6C757D" />
             <Text className="text-secondary text-sm ml-1">
               ~{item.estimatedTime} min
             </Text>
           </View>
-          
+
           {item.tripType === 'roundtrip' && (
             <View className="bg-blue-100 px-2 py-1 rounded-full">
               <Text className="text-blue-600 text-xs font-semibold">
@@ -383,7 +381,7 @@ const DriverTripsScreen = ({ navigation }) => {
             Decline
           </Text>
         </TouchableOpacity>
-        
+
         <TouchableOpacity
           onPress={() => handleTripAction('accept', item)}
           className="flex-1 rounded-xl overflow-hidden ml-2"
@@ -427,7 +425,7 @@ const DriverTripsScreen = ({ navigation }) => {
               </Text>
             </View>
           </View>
-          
+
           <Text className="text-primary text-2xl font-bold">
             ₹{item.fare}
           </Text>
@@ -442,7 +440,7 @@ const DriverTripsScreen = ({ navigation }) => {
             </Text>
           </View>
           <View className="bg-gray-200 h-2 rounded-full">
-            <View 
+            <View
               className="bg-accent h-2 rounded-full"
               style={{ width: `${item.progress}%` }}
             />
@@ -479,7 +477,7 @@ const DriverTripsScreen = ({ navigation }) => {
             Call
           </Text>
         </TouchableOpacity>
-        
+
         <TouchableOpacity
           onPress={() => handleTripAction('navigate', item)}
           className="flex-1 bg-accent/10 rounded-xl py-3 justify-center items-center"
@@ -489,7 +487,7 @@ const DriverTripsScreen = ({ navigation }) => {
             Navigate
           </Text>
         </TouchableOpacity>
-        
+
         <TouchableOpacity
           onPress={() => handleTripAction('complete', item)}
           className="flex-1 rounded-xl overflow-hidden"
@@ -532,7 +530,7 @@ const DriverTripsScreen = ({ navigation }) => {
               </Text>
             </View>
           </View>
-          
+
           <View className="items-end">
             <Text className="text-primary text-xl font-bold">
               ₹{item.fare + item.tip}
@@ -550,7 +548,7 @@ const DriverTripsScreen = ({ navigation }) => {
           <Text className="text-secondary text-sm">
             {item.distance} km • {item.duration} min
           </Text>
-          
+
           {item.customerRating && (
             <View className="flex-row items-center">
               <Ionicons name="star" size={16} color="#F59E0B" />
@@ -591,7 +589,7 @@ const DriverTripsScreen = ({ navigation }) => {
               </Text>
             </View>
           </View>
-          
+
           {item.cancellationFee > 0 && (
             <Text className="text-green-600 text-base font-bold">
               +₹{item.cancellationFee}
@@ -629,10 +627,32 @@ const DriverTripsScreen = ({ navigation }) => {
     }
   };
 
+  const spinValue = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (refreshing) {
+      Animated.loop(
+        Animated.timing(spinValue, {
+          toValue: 1,
+          duration: 1000,
+          useNativeDriver: true,
+        })
+      ).start();
+    } else {
+      spinValue.setValue(0);
+      spinValue.stopAnimation();
+    }
+  }, [refreshing]);
+
+  const spin = spinValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg']
+  });
+
   return (
     <View className="flex-1 bg-gray-50">
       <StatusBar barStyle="dark-content" backgroundColor="#f9fafb" />
-      
+
       {/* Custom Header */}
       <Animated.View
         style={{
@@ -649,17 +669,20 @@ const DriverTripsScreen = ({ navigation }) => {
           >
             <Ionicons name="chevron-back" size={20} color="#1A1B23" />
           </TouchableOpacity>
-          
+
           <View className="flex-1 items-center">
             <Text className="text-primary text-lg font-semibold">My Trips</Text>
           </View>
-          
+
           <TouchableOpacity
             onPress={onRefresh}
             className="w-10 h-10 bg-gray-100 rounded-2xl justify-center items-center"
             activeOpacity={0.7}
+            disabled={refreshing}
           >
-            <Ionicons name="refresh" size={20} color="#1A1B23" />
+            <Animated.View style={{ transform: [{ rotate: spin }] }}>
+              <Ionicons name="refresh" size={20} color="#1A1B23" />
+            </Animated.View>
           </TouchableOpacity>
         </View>
       </Animated.View>
@@ -679,15 +702,14 @@ const DriverTripsScreen = ({ navigation }) => {
               style={{
                 transform: [{ scale: pulseAnim }],
               }}
-              className={`w-3 h-3 rounded-full mr-3 ${
-                isOnline ? 'bg-accent' : 'bg-red-500'
-              }`}
+              className={`w-3 h-3 rounded-full mr-3 ${isOnline ? 'bg-accent' : 'bg-red-500'
+                }`}
             />
             <Text className="text-primary text-lg font-bold">
               {isOnline ? 'Online' : 'Offline'}
             </Text>
           </View>
-          
+
           <Switch
             value={isOnline}
             onValueChange={toggleOnlineStatus}
@@ -702,7 +724,7 @@ const DriverTripsScreen = ({ navigation }) => {
           <Text className="text-primary text-base font-semibold mb-3">
             Today's Performance
           </Text>
-          
+
           <View className="flex-row justify-between">
             <View className="items-center">
               <Text className="text-primary text-xl font-bold">
@@ -710,21 +732,21 @@ const DriverTripsScreen = ({ navigation }) => {
               </Text>
               <Text className="text-secondary text-sm">Earnings</Text>
             </View>
-            
+
             <View className="items-center">
               <Text className="text-primary text-xl font-bold">
                 {todayStats.completedTrips}
               </Text>
               <Text className="text-secondary text-sm">Trips</Text>
             </View>
-            
+
             <View className="items-center">
               <Text className="text-primary text-xl font-bold">
                 {todayStats.totalDistance}
               </Text>
               <Text className="text-secondary text-sm">km</Text>
             </View>
-            
+
             <View className="items-center">
               <Text className="text-primary text-xl font-bold">
                 {todayStats.rating}
@@ -749,18 +771,16 @@ const DriverTripsScreen = ({ navigation }) => {
               <TouchableOpacity
                 key={tab.id}
                 onPress={() => setSelectedTab(tab.id)}
-                className={`flex-row items-center px-4 py-3 rounded-xl mr-2 ${
-                  selectedTab === tab.id ? 'bg-accent/10' : 'bg-transparent'
-                }`}
+                className={`flex-row items-center px-4 py-3 rounded-xl mr-2 ${selectedTab === tab.id ? 'bg-accent/10' : 'bg-transparent'
+                  }`}
                 activeOpacity={0.7}
               >
-                <View 
+                <View
                   className="w-3 h-3 rounded-full mr-2"
                   style={{ backgroundColor: tab.color }}
                 />
-                <Text className={`text-sm font-medium ${
-                  selectedTab === tab.id ? 'text-accent' : 'text-secondary'
-                }`}>
+                <Text className={`text-sm font-medium ${selectedTab === tab.id ? 'text-accent' : 'text-secondary'
+                  }`}>
                   {tab.label}
                 </Text>
                 {tab.count > 0 && (
@@ -796,24 +816,24 @@ const DriverTripsScreen = ({ navigation }) => {
           ListEmptyComponent={
             <View className="items-center justify-center py-12">
               <View className="w-16 h-16 bg-gray-100 rounded-full justify-center items-center mb-4">
-                <Ionicons 
-                  name={selectedTab === 'available' ? 'car-outline' : 
-                       selectedTab === 'ongoing' ? 'navigate-outline' :
-                       selectedTab === 'completed' ? 'checkmark-circle-outline' :
-                       'close-circle-outline'} 
-                  size={32} 
-                  color="#6C757D" 
+                <Ionicons
+                  name={selectedTab === 'available' ? 'car-outline' :
+                    selectedTab === 'ongoing' ? 'navigate-outline' :
+                      selectedTab === 'completed' ? 'checkmark-circle-outline' :
+                        'close-circle-outline'}
+                  size={32}
+                  color="#6C757D"
                 />
               </View>
               <Text className="text-primary text-lg font-semibold mb-2">
                 No {selectedTab} trips
               </Text>
               <Text className="text-secondary text-sm text-center">
-                {selectedTab === 'available' ? 
+                {selectedTab === 'available' ?
                   isOnline ? 'New trip requests will appear here' : 'Go online to receive trip requests' :
-                 selectedTab === 'ongoing' ? 'Active trips will be shown here' :
-                 selectedTab === 'completed' ? 'Completed trips will be listed here' :
-                 'Cancelled trips will appear here'}
+                  selectedTab === 'ongoing' ? 'Active trips will be shown here' :
+                    selectedTab === 'completed' ? 'Completed trips will be listed here' :
+                      'Cancelled trips will appear here'}
               </Text>
             </View>
           }

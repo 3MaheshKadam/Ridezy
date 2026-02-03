@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity, SafeAreaView, StatusBar, Alert, ActivityIndicator, Dimensions } from 'react-native';
+import { View, Text, TouchableOpacity, SafeAreaView, StatusBar, Alert, ActivityIndicator, Dimensions, Linking } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
 import * as Location from 'expo-location';
@@ -22,6 +22,8 @@ const DriverTripTrackingScreen = ({ navigation, route }) => {
     const [distance, setDistance] = useState(null); // in km
     const [destination, setDestination] = useState(null); // Current target coordinates
     const [isLoading, setIsLoading] = useState(false);
+    const [navigationSteps, setNavigationSteps] = useState([]);
+    const [currentStepIndex, setCurrentStepIndex] = useState(0);
 
     // Debug States
     const [routeDebugStatus, setRouteDebugStatus] = useState('Idle');
@@ -34,6 +36,8 @@ const DriverTripTrackingScreen = ({ navigation, route }) => {
     const lastDestination = useRef(null); // Track dest changes
 
     useEffect(() => {
+        console.log("DriverTripTrackingScreen MOUNTED - Debug Mode Active");
+        console.log("Trip ID:", tripId);
         fetchLatestTripDetails();
         startLocationTracking();
         return () => stopLocationTracking();
@@ -177,8 +181,8 @@ const DriverTripTrackingScreen = ({ navigation, route }) => {
             setRouteDebugStatus('Fetching...');
             setRouteError(null);
 
-            const url = `https://router.project-osrm.org/route/v1/driving/${start.lng},${start.lat};${end.lng},${end.lat}?overview=full&geometries=geojson`;
-            // setRouteError(url); // Optional: view URL if needed
+            // Request steps=true for turn-by-turn
+            const url = `https://router.project-osrm.org/route/v1/driving/${start.lng},${start.lat};${end.lng},${end.lat}?overview=full&geometries=geojson&steps=true`;
 
             const response = await fetch(url);
 
@@ -196,6 +200,12 @@ const DriverTripTrackingScreen = ({ navigation, route }) => {
                 const route = data.routes[0];
                 const coords = route.geometry.coordinates.map(c => ({ latitude: c[1], longitude: c[0] }));
                 setRouteCoordinates(coords);
+
+                // Parse Steps
+                if (route.legs && route.legs.length > 0) {
+                    setNavigationSteps(route.legs[0].steps);
+                    setCurrentStepIndex(0);
+                }
 
                 // Calculate ETA and Distance
                 const durationMins = Math.round(route.duration / 60);
@@ -233,14 +243,12 @@ const DriverTripTrackingScreen = ({ navigation, route }) => {
                     onPress: async () => {
                         try {
                             setIsLoading(true);
-                            // Call Patch API
-                            // Assuming route is /api/trips/:id (PATCH)
                             await patch(endpoints.trips.status(tripId).replace('/status', ''), { status: 'IN_PROGRESS' });
                             setStatus('IN_PROGRESS');
-                            Alert.alert("Trip Started", "Navigate to the dropoff location.");
+                            Alert.alert("Trip Started", "Navigation started.");
                         } catch (error) {
                             Alert.alert("Error", "Failed to start trip.");
-                            console.error(error);
+                            console.error("Start Trip Error:", error);
                         } finally {
                             setIsLoading(false);
                         }
@@ -280,26 +288,84 @@ const DriverTripTrackingScreen = ({ navigation, route }) => {
     // Render Helpers
     const getButtonText = () => {
         if (isLoading) return "Updating...";
-        if (status === 'ACCEPTED') return "Start Trip";
+        // Treat OPEN as ACCEPTED (Start Trip) because we are on the driver app
+        if (status === 'ACCEPTED' || status === 'OPEN') return "Start Trip";
         if (status === 'IN_PROGRESS') return "Complete Trip";
         return "Trip Ended";
     };
 
     const getButtonAction = () => {
-        if (status === 'ACCEPTED') return handleStartTrip;
+        if (status === 'ACCEPTED' || status === 'OPEN') return handleStartTrip;
         if (status === 'IN_PROGRESS') return handleCompleteTrip;
         return () => { };
     };
 
+    const getManeuverIcon = (type, modifier) => {
+        if (!type) return "navigate";
+        if (type === 'arrive') return "flag";
+        if (type === 'depart') return "car";
+
+        // Simple mapping
+        if (modifier && modifier.includes('left')) return "arrow-undo";
+        if (modifier && modifier.includes('right')) return "arrow-redo";
+        if (modifier && modifier.includes('straight')) return "arrow-up";
+        if (modifier && modifier.includes('uturn')) return "refresh";
+
+        return "navigate";
+    };
+
+    const getStepInstruction = (step) => {
+        if (!step) return "Follow route";
+        // OSRM usually provides a 'name'
+        const road = step.name || "road";
+        const maneuver = step.maneuver;
+
+        if (maneuver.type === 'arrive') return "Arrive at destination";
+        if (maneuver.type === 'depart') return "Head to " + road;
+
+        const turn = maneuver.modifier ? maneuver.modifier.replace('_', ' ') : 'Turn';
+        return `${turn.charAt(0).toUpperCase() + turn.slice(1)} onto ${road}`;
+    };
+
     const getInstructionText = () => {
-        if (status === 'ACCEPTED') return `Pickup at ${tripDetails?.pickupLocation}`;
+        if (status === 'ACCEPTED' || status === 'OPEN') return `Pickup at ${tripDetails?.pickupLocation}`;
         if (status === 'IN_PROGRESS') return `Dropoff at ${tripDetails?.dropoffLocation}`;
         return "Trip Completed";
     };
 
+    const getInstructionToDisplay = () => {
+        if (navigationSteps.length === 0) return { text: getInstructionText(), distance: 0, icon: 'navigate' };
+
+        // If we have a next step, show THAT action (e.g., "Turn Right")
+        // The distance to that action is the distance of the CURRENT step.
+        const currentStep = navigationSteps[currentStepIndex];
+        const nextStep = navigationSteps[currentStepIndex + 1];
+
+        if (nextStep) {
+            return {
+                text: getStepInstruction(nextStep),
+                distance: currentStep.distance,
+                icon: getManeuverIcon(nextStep.maneuver?.type, nextStep.maneuver?.modifier)
+            };
+        } else if (currentStep) {
+            // Final approach
+            return {
+                text: getStepInstruction(currentStep),
+                distance: currentStep.distance,
+                icon: getManeuverIcon(currentStep.maneuver?.type, currentStep.maneuver?.modifier)
+            };
+        }
+        return { text: getInstructionText(), distance: 0, icon: 'navigate' };
+    };
+
+    const navDisplay = status === 'IN_PROGRESS' ? getInstructionToDisplay() : null;
+
     return (
         <View className="flex-1 bg-white">
             <StatusBar barStyle="dark-content" />
+            <SafeAreaView className="absolute top-0 w-full z-10 pointer-events-none">
+                {/* Can add custom header here if needed */}
+            </SafeAreaView>
 
             {/* Map Area */}
             <MapView
@@ -360,18 +426,33 @@ const DriverTripTrackingScreen = ({ navigation, route }) => {
                     </View>
                 </View>
 
-                {/* Instruction */}
+                {/* Instruction / Navigation */}
                 <View className="flex-row items-center mb-6">
-                    <View className={`w-10 h-10 rounded-full justify-center items-center mr-3 ${status === 'ACCEPTED' ? 'bg-green-100' : 'bg-red-100'}`}>
-                        <Ionicons name={status === 'ACCEPTED' ? "location" : "flag"} size={24} color={status === 'ACCEPTED' ? "#00C851" : "#FF4444"} />
+                    <View className={`w-12 h-12 rounded-full justify-center items-center mr-3 ${status === 'ACCEPTED' ? 'bg-green-100' : 'bg-blue-100'}`}>
+                        {status === 'IN_PROGRESS' && navDisplay ? (
+                            <Ionicons
+                                name={navDisplay.icon}
+                                size={28}
+                                color="#2563EB"
+                            />
+                        ) : (
+                            <Ionicons name={status === 'ACCEPTED' ? "location" : "flag"} size={24} color={status === 'ACCEPTED' ? "#00C851" : "#FF4444"} />
+                        )}
                     </View>
                     <View className="flex-1">
                         <Text className="text-xs text-gray-400 font-bold uppercase">
-                            {status === 'ACCEPTED' ? "HEAD TO PICKUP" : "HEAD TO DROPOFF"}
+                            {status === 'ACCEPTED' ? "HEAD TO PICKUP" : "NEXT TURN"}
                         </Text>
                         <Text className="text-lg font-semibold text-gray-800" numberOfLines={2}>
-                            {getInstructionText()}
+                            {status === 'IN_PROGRESS' && navDisplay ? navDisplay.text : getInstructionText()}
                         </Text>
+                        {status === 'IN_PROGRESS' && navDisplay && (
+                            <Text className="text-gray-500 text-sm">
+                                {navDisplay.distance < 1000
+                                    ? `${Math.round(navDisplay.distance)}m`
+                                    : `${(navDisplay.distance / 1000).toFixed(1)} km`}
+                            </Text>
+                        )}
                     </View>
                 </View>
 

@@ -51,8 +51,8 @@ const DriverApprovalScreen = ({ navigation }) => {
       // Mock filter for now. In real implementation, backend might filter or return structured data.
       const drivers = data.filter(item => item.type === 'DRIVER' || item.licenseNumber); // Heuristic
 
-      setPendingDrivers(drivers.filter(d => d.status === 'PENDING'));
-      setApprovedDrivers(drivers.filter(d => d.status === 'APPROVED'));
+      setPendingDrivers(drivers.filter(d => d.status === 'PENDING_APPROVAL' || d.status === 'PENDING'));
+      setApprovedDrivers(drivers.filter(d => d.status === 'ACTIVE' || d.status === 'APPROVED'));
       setRejectedDrivers(drivers.filter(d => d.status === 'REJECTED'));
 
     } catch (error) {
@@ -679,25 +679,33 @@ const DriverApprovalScreen = ({ navigation }) => {
                       Documents Submitted
                     </Text>
                     <View className="space-y-2">
-                      {Object.entries(selectedDriver.documents).map(([key, value]) => (
-                        <View key={key} className="flex-row items-center justify-between">
-                          <View className="flex-row items-center flex-1">
-                            <Ionicons name="document-text" size={16} color="#8B5CF6" />
-                            <Text className="text-secondary text-sm ml-2 capitalize">
-                              {key.replace(/([A-Z])/g, ' $1').trim()}
-                            </Text>
+                      {Object.entries(selectedDriver.documents)
+                        .filter(([key, value]) => {
+                          // Filter 1: Must be a valid/allowed document type
+                          const isAllowed = ['drivingLicense', 'aadharCard', 'panCard', 'photo'].includes(key);
+                          // Filter 2: Must have a valid URL
+                          const hasValue = !!value;
+                          return isAllowed && hasValue;
+                        })
+                        .map(([key, value]) => (
+                          <View key={key} className="flex-row items-center justify-between">
+                            <View className="flex-row items-center flex-1">
+                              <Ionicons name="document-text" size={16} color="#8B5CF6" />
+                              <Text className="text-secondary text-sm ml-2 capitalize">
+                                {key.replace(/([A-Z])/g, ' $1').trim()}
+                              </Text>
+                            </View>
+                            <TouchableOpacity
+                              onPress={() => Linking.openURL(value)}
+                              className="bg-purple-50 px-3 py-1 rounded-full"
+                              activeOpacity={0.8}
+                            >
+                              <Text className="text-purple-600 text-xs font-semibold">
+                                View
+                              </Text>
+                            </TouchableOpacity>
                           </View>
-                          <TouchableOpacity
-                            onPress={() => Linking.openURL(value)}
-                            className="bg-purple-50 px-3 py-1 rounded-full"
-                            activeOpacity={0.8}
-                          >
-                            <Text className="text-purple-600 text-xs font-semibold">
-                              View
-                            </Text>
-                          </TouchableOpacity>
-                        </View>
-                      ))}
+                        ))}
                     </View>
                   </View>
 

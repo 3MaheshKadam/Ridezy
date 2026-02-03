@@ -16,6 +16,7 @@ import { Ionicons, MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
 import '../../global.css';
 import { get, post } from '../../lib/api';
 import { endpoints } from '../../config/apiConfig';
+import { useFocusEffect } from '@react-navigation/native';
 
 const { width, height } = Dimensions.get('window');
 
@@ -28,9 +29,14 @@ const DriverRequestFeedScreen = ({ navigation }) => {
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const slideUpAnim = useRef(new Animated.Value(30)).current;
 
+    useFocusEffect(
+        React.useCallback(() => {
+            fetchRequests();
+        }, [])
+    );
+
     useEffect(() => {
         startAnimations();
-        fetchRequests();
     }, []);
 
     const startAnimations = () => {
@@ -85,30 +91,27 @@ const DriverRequestFeedScreen = ({ navigation }) => {
         fetchRequests();
     };
 
-    const handleAccept = async (trip) => {
+    const handleShowInterest = async (trip) => {
         Alert.alert(
-            'Accept Trip',
-            'Are you sure you want to accept this trip request?',
+            'Show Interest',
+            'Do you want to show interest in this trip? The owner will review your profile.',
             [
                 { text: 'Cancel', style: 'cancel' },
                 {
-                    text: 'Accept',
+                    text: 'Yes, Show Interest',
                     onPress: async () => {
                         setAcceptingId(trip.id);
                         try {
-                            // Call API to accept trip
-                            // endpoints.trips.accept(id) returns string URL
-                            await post(endpoints.trips.accept(trip.id));
+                            const response = await post(endpoints.trips.interest(trip.id));
 
-                            Alert.alert('Success', 'Trip accepted successfully!', [
-                                {
-                                    text: 'Go to Trip',
-                                    onPress: () => navigation.navigate('DriverTripTracking', { tripId: trip.id, tripDetails: trip })
-                                }
-                            ]);
+                            if (response.message === 'Interest already sent') {
+                                Alert.alert('Info', 'You have already shown interest in this trip.');
+                            } else {
+                                Alert.alert('Success', 'Interest sent! You will be notified if the owner selects you.');
+                            }
                         } catch (error) {
-                            Alert.alert('Error', 'Failed to accept trip. It might have been taken by another driver.');
-                            fetchRequests(); // Refresh list
+                            Alert.alert('Error', 'Failed to send interest. Please try again.');
+                            console.error(error);
                         } finally {
                             setAcceptingId(null);
                         }
@@ -184,14 +187,14 @@ const DriverRequestFeedScreen = ({ navigation }) => {
                 </View>
 
                 <TouchableOpacity
-                    onPress={() => handleAccept(item)}
+                    onPress={() => handleShowInterest(item)}
                     disabled={acceptingId === item.id}
                     className="bg-primary px-6 py-2.5 rounded-xl shadow-sm shadow-primary/30"
                 >
                     {acceptingId === item.id ? (
                         <ActivityIndicator color="white" size="small" />
                     ) : (
-                        <Text className="text-white font-bold">Accept Request</Text>
+                        <Text className="text-white font-bold">Show Interest</Text>
                     )}
                 </TouchableOpacity>
             </View>

@@ -20,15 +20,22 @@ const { width } = Dimensions.get('window');
 
 const TripTrackingScreen = ({ navigation, route }) => {
   const { user } = useUser();
-  const { tripId, tripDetails } = route.params || {};
+  const params = route.params || {};
+  const tripDetails = params.tripDetails;
+  // Fallback to ID inside details if top-level tripId is missing
+  const tripId = params.tripId || tripDetails?._id || tripDetails?.id;
 
   // If parameters are missing, handle gracefully (e.g., show loading or go back)
   useEffect(() => {
-    if (!tripId || !tripDetails) {
-      // Optional: Log error or handle it
-      console.log("TripTrackingScreen: Missing tripId or tripDetails");
+    console.log('TripTracking Params:', route.params);
+    if (!tripId) {
+      console.error("TripTrackingScreen: Missing tripId", route.params);
+      Alert.alert("Error", "Trip ID missing. Returning...", [
+        { text: "OK", onPress: () => navigation.goBack() }
+      ]);
+      return;
     }
-  }, [tripId, tripDetails]);
+  }, [tripId]);
   const [status, setStatus] = useState('OPEN'); // OPEN, ACCEPTED, IN_PROGRESS, COMPLETED
   const [driver, setDriver] = useState(null);
   const [owner, setOwner] = useState(null);
@@ -94,6 +101,7 @@ const TripTrackingScreen = ({ navigation, route }) => {
 
   const checkStatus = async () => {
     try {
+      if (!tripId) return;
       const response = await get(endpoints.trips.status(tripId));
       if (response && response.trip) {
         const { status: newStatus, driverId, ownerId, vehicle } = response.trip;

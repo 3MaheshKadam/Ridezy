@@ -10,107 +10,30 @@ import {
   Alert,
   Modal,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons, MaterialIcons } from '@expo/vector-icons';
-import '../../global.css';
+import { Ionicons } from '@expo/vector-icons';
+import { useDriverSubscription } from '../../hooks/useDriverSubscription';
 
 const { width, height } = Dimensions.get('window');
 
 const DriverSubscription = ({ navigation }) => {
+  const {
+    plans: subscriptionPlans,
+    currentSubscription,
+    loading: isLoading,
+    processing,
+    subscribeToPlan,
+    cancelSubscription,
+    getDaysRemaining
+  } = useDriverSubscription();
+
+  // Unified State: If selectedPlan is not null, the modal is open.
   const [selectedPlan, setSelectedPlan] = useState(null);
-  const [currentSubscription, setCurrentSubscription] = useState(null);
-  const [showConfirmModal, setShowConfirmModal] = useState(false);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideUpAnim = useRef(new Animated.Value(30)).current;
   const modalSlideAnim = useRef(new Animated.Value(height)).current;
 
-  // Mock current subscription data
   useEffect(() => {
-    // TODO: Fetch driver's current subscription from API
-    setCurrentSubscription({
-      planId: '2',
-      planName: 'Professional Plan',
-      price: 399,
-      duration: 'monthly',
-      startDate: '2025-01-01',
-      expiryDate: '2025-02-01',
-      status: 'active',
-      autoRenewal: true,
-    });
-  }, []);
-
-  // Available subscription plans
-  const subscriptionPlans = [
-    {
-      id: '1',
-      name: 'Starter Plan',
-      price: 199,
-      duration: 'monthly',
-      description: 'Perfect for new drivers starting out',
-      commission: 5,
-      features: [
-        '5% platform commission',
-        'Up to 50 trips per month',
-        'Basic analytics dashboard',
-        'Standard customer support',
-        'Email notifications',
-        'Basic driver profile',
-      ],
-      color: '#3B82F6',
-      gradient: ['#3B82F6', '#2563EB'],
-    },
-    {
-      id: '2',
-      name: 'Professional Plan',
-      price: 399,
-      duration: 'monthly',
-      description: 'Best for active professional drivers',
-      commission: 3,
-      features: [
-        '3% platform commission',
-        'Unlimited trips per month',
-        'Advanced analytics & insights',
-        'Priority booking algorithm',
-        'Priority customer support',
-        'Marketing & promotion support',
-        'Featured driver badge',
-        'SMS + Email notifications',
-      ],
-      color: '#8B5CF6',
-      gradient: ['#8B5CF6', '#7C3AED'],
-      popular: true,
-    },
-    {
-      id: '3',
-      name: 'Elite Plan',
-      price: 699,
-      duration: 'monthly',
-      description: 'Ultimate plan for top-tier drivers',
-      commission: 2,
-      features: [
-        'Only 2% platform commission',
-        'Unlimited premium trips',
-        'Premium analytics suite',
-        'Highest priority booking',
-        '24/7 dedicated support line',
-        'Premium marketing exposure',
-        'Elite driver badge & perks',
-        'All notifications channels',
-        'Monthly performance bonus',
-        'Exclusive high-value customers',
-      ],
-      color: '#F59E0B',
-      gradient: ['#F59E0B', '#D97706'],
-    },
-  ];
-
-  useEffect(() => {
-    startAnimations();
-  }, []);
-
-  const startAnimations = () => {
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -124,592 +47,281 @@ const DriverSubscription = ({ navigation }) => {
         useNativeDriver: true,
       }),
     ]).start();
-  };
+  }, []);
 
-  const openConfirmModal = (plan) => {
+  // --- Modal Logic ---
+  const openPlanModal = (plan) => {
     setSelectedPlan(plan);
-    setShowConfirmModal(true);
-    Animated.timing(modalSlideAnim, {
+    Animated.spring(modalSlideAnim, {
       toValue: 0,
-      duration: 300,
       useNativeDriver: true,
+      damping: 20,
+      stiffness: 100,
     }).start();
   };
 
-  const closeConfirmModal = () => {
+  const closePlanModal = () => {
     Animated.timing(modalSlideAnim, {
       toValue: height,
       duration: 300,
       useNativeDriver: true,
     }).start(() => {
-      setShowConfirmModal(false);
       setSelectedPlan(null);
     });
   };
 
-  const handleSubscribe = () => {
-    closeConfirmModal();
-    setTimeout(() => {
-      setShowPaymentModal(true);
-      Animated.timing(modalSlideAnim, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      }).start();
-    }, 300);
-  };
-
   const handlePayment = async (method) => {
-    try {
-      // TODO: Implement payment gateway integration
-      await new Promise(resolve => setTimeout(resolve, 2000));
+    if (!selectedPlan) return;
 
-      // Update current subscription
-      setCurrentSubscription({
-        planId: selectedPlan.id,
-        planName: selectedPlan.name,
-        price: selectedPlan.price,
-        duration: selectedPlan.duration,
-        startDate: new Date().toISOString().split('T')[0],
-        expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        status: 'active',
-        autoRenewal: true,
-      });
-
-      Animated.timing(modalSlideAnim, {
-        toValue: height,
-        duration: 300,
-        useNativeDriver: true,
-      }).start(() => {
-        setShowPaymentModal(false);
-        setSelectedPlan(null);
-        
-        Alert.alert(
-          'Success!',
-          'Your subscription has been activated successfully.',
-          [{ text: 'OK' }]
-        );
-      });
-    } catch (error) {
-      Alert.alert('Payment Failed', 'Please try again or use a different payment method.');
+    const success = await subscribeToPlan(selectedPlan);
+    if (success) {
+      closePlanModal();
+      Alert.alert('Welcome to Premium!', `You have successfully subscribed to the ${selectedPlan.name}.`);
     }
   };
 
   const handleCancelSubscription = () => {
     Alert.alert(
       'Cancel Subscription',
-      'Are you sure you want to cancel your subscription? You will lose all premium benefits.',
+      'Are you sure? You will lose all premium benefits immediately.',
       [
-        { text: 'No', style: 'cancel' },
+        { text: 'Keep Plan', style: 'cancel' },
         {
           text: 'Yes, Cancel',
           style: 'destructive',
           onPress: async () => {
-            try {
-              // TODO: API call to cancel subscription
-              await new Promise(resolve => setTimeout(resolve, 1000));
-              
-              setCurrentSubscription({
-                ...currentSubscription,
-                status: 'cancelled',
-                autoRenewal: false,
-              });
-              
-              Alert.alert('Cancelled', 'Your subscription has been cancelled.');
-            } catch (error) {
-              Alert.alert('Error', 'Failed to cancel subscription.');
-            }
+            await cancelSubscription();
+            Alert.alert('Subscription Cancelled', 'You are now on the Basic plan.');
           },
         },
       ]
     );
   };
 
-  const getDaysRemaining = () => {
-    if (!currentSubscription) return 0;
-    const expiry = new Date(currentSubscription.expiryDate);
-    const today = new Date();
-    const diffTime = expiry - today;
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays > 0 ? diffDays : 0;
-  };
-
-  const formatCurrency = (amount) => {
-    return `₹${amount.toLocaleString('en-IN')}`;
-  };
+  const formatCurrency = (amount) => `₹${amount.toLocaleString('en-IN')}`;
 
   const renderPlanCard = (plan) => {
-    const isCurrentPlan = currentSubscription?.planId === plan.id;
-    const isUpgrade = currentSubscription && 
-      subscriptionPlans.findIndex(p => p.id === currentSubscription.planId) < 
-      subscriptionPlans.findIndex(p => p.id === plan.id);
+    const isCurrentPlan = currentSubscription && String(currentSubscription.planId) === String(plan.id);
+    const isUpgrade = currentSubscription &&
+      subscriptionPlans.findIndex(p => String(p.id) === String(currentSubscription.planId)) <
+      subscriptionPlans.findIndex(p => String(p.id) === String(plan.id));
 
     return (
-      <View
+      <TouchableOpacity
         key={plan.id}
+        activeOpacity={0.9}
+        onPress={() => !isCurrentPlan && openPlanModal(plan)}
+        disabled={isCurrentPlan}
         className="mb-6"
       >
-        <View className={`bg-white rounded-3xl overflow-hidden shadow-lg shadow-black/10 border-2 ${
-          isCurrentPlan ? 'border-accent' : plan.popular ? 'border-purple-200' : 'border-gray-100'
-        }`}>
+        <View className={`bg-white rounded-3xl overflow-hidden shadow-sm shadow-black/10 border-2 ${isCurrentPlan ? 'border-accent' : plan.popular ? 'border-purple-200' : 'border-gray-100'
+          }`}>
+          {/* Plan Badge */}
           {plan.popular && !isCurrentPlan && (
-            <View className="bg-purple-500 py-2 px-4">
-              <Text className="text-white text-sm font-bold text-center">
-                ⭐ MOST POPULAR
+            <View className="bg-purple-100 py-2 px-4 items-center flex-row justify-center">
+              <Ionicons name="star" size={14} color="#8B5CF6" />
+              <Text className="text-purple-700 text-xs font-bold ml-1 uppercase tracking-wider">
+                Most Popular
               </Text>
             </View>
           )}
-          
           {isCurrentPlan && (
-            <View className="bg-accent py-2 px-4">
-              <Text className="text-white text-sm font-bold text-center">
-                ✓ YOUR CURRENT PLAN
+            <View className="bg-green-100 py-2 px-4 items-center flex-row justify-center">
+              <Ionicons name="checkmark-circle" size={16} color="#059669" />
+              <Text className="text-green-700 text-xs font-bold ml-1 uppercase tracking-wider">
+                Current Plan
               </Text>
             </View>
           )}
 
           <View className="p-6">
-            {/* Plan Header */}
-            <View className="items-center mb-6">
-              <View
-                className="w-16 h-16 rounded-2xl justify-center items-center mb-4"
-                style={{ backgroundColor: `${plan.color}15` }}
-              >
-                <Ionicons name="car-sport" size={32} color={plan.color} />
+            <View className="flex-row justify-between items-start mb-4">
+              <View>
+                <Text className="text-primary text-xl font-bold mb-1">{plan.name}</Text>
+                <Text className="text-secondary text-xs">{plan.description}</Text>
               </View>
-              <Text className="text-primary text-2xl font-bold mb-2">
-                {plan.name}
-              </Text>
-              <Text className="text-secondary text-sm text-center mb-4">
-                {plan.description}
-              </Text>
-              
-              {/* Price */}
-              <View className="items-center">
-                <View className="flex-row items-end">
-                  <Text className="text-primary text-4xl font-bold">
-                    {formatCurrency(plan.price)}
-                  </Text>
-                  <Text className="text-secondary text-lg mb-1 ml-2">
-                    /{plan.duration}
-                  </Text>
-                </View>
-                <View className="bg-green-50 px-3 py-1 rounded-full mt-2">
-                  <Text className="text-green-600 text-sm font-semibold">
-                    Only {plan.commission}% Commission
-                  </Text>
-                </View>
+              <View className="w-12 h-12 rounded-xl justify-center items-center" style={{ backgroundColor: `${plan.color}15` }}>
+                <Ionicons name="car-sport" size={24} color={plan.color} />
               </View>
             </View>
 
-            {/* Features */}
-            <View className="mb-6">
-              <Text className="text-primary text-base font-bold mb-3">
-                What's Included:
-              </Text>
-              {plan.features.map((feature, index) => (
-                <View key={index} className="flex-row items-center mb-3">
-                  <View className="w-6 h-6 bg-accent/10 rounded-full justify-center items-center mr-3">
-                    <Ionicons name="checkmark" size={14} color="#00C851" />
-                  </View>
-                  <Text className="text-secondary text-sm flex-1">
-                    {feature}
-                  </Text>
-                </View>
-              ))}
+            <View className="flex-row items-baseline mb-6">
+              <Text className="text-primary text-3xl font-extrabold">{formatCurrency(plan.price)}</Text>
+              <Text className="text-secondary text-sm ml-1">/{plan.duration}</Text>
             </View>
 
-            {/* Action Button */}
-            {isCurrentPlan ? (
-              <View className="space-y-3">
-                <View className="bg-gray-50 rounded-2xl p-4">
-                  <View className="flex-row items-center justify-between mb-2">
-                    <Text className="text-secondary text-sm">Status</Text>
-                    <View className="bg-green-50 px-3 py-1 rounded-full">
-                      <Text className="text-green-600 text-xs font-semibold">
-                        {currentSubscription.status}
-                      </Text>
-                    </View>
-                  </View>
-                  <View className="flex-row items-center justify-between">
-                    <Text className="text-secondary text-sm">Expires in</Text>
-                    <Text className="text-primary text-sm font-bold">
-                      {getDaysRemaining()} days
-                    </Text>
-                  </View>
-                </View>
-                
+            {/* Feature Teaser */}
+            <View className="space-y-2 mb-4">
+              <View className="flex-row items-center">
+                <Ionicons name="flash" size={14} color="#F59E0B" />
+                <Text className="text-secondary text-sm ml-2 font-medium">
+                  {plan.commission}% Commission (Save Money)
+                </Text>
+              </View>
+              <View className="flex-row items-center">
+                <Ionicons name="people" size={14} color="#3B82F6" />
+                <Text className="text-secondary text-sm ml-2 font-medium">
+                  Priority Booking Access
+                </Text>
+              </View>
+            </View>
+
+            {!isCurrentPlan && (
+              <View className="h-12 rounded-xl flex-row justify-center items-center bg-gray-50 mt-2 border border-gray-100">
+                <Text className="text-primary font-semibold">
+                  {isUpgrade ? 'Tap to Upgrade' : 'View Details'}
+                </Text>
+              </View>
+            )}
+
+            {isCurrentPlan && (
+              <View className="flex-row gap-2 mt-2">
                 <TouchableOpacity
                   onPress={handleCancelSubscription}
-                  className="bg-red-50 rounded-2xl py-4 justify-center items-center border border-red-200"
-                  activeOpacity={0.8}
+                  className="flex-1 py-3 bg-red-50 rounded-xl items-center border border-red-100"
                 >
-                  <Text className="text-red-600 text-base font-semibold">
-                    Cancel Subscription
-                  </Text>
+                  <Text className="text-red-600 font-semibold text-sm">Cancel Plan</Text>
                 </TouchableOpacity>
               </View>
-            ) : (
-              <TouchableOpacity
-                onPress={() => openConfirmModal(plan)}
-                activeOpacity={0.8}
-                className="rounded-2xl overflow-hidden"
-              >
-                <LinearGradient
-                  colors={plan.gradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={{
-                    borderRadius: 16,
-                    paddingVertical: 16,
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                  }}
-                >
-                  <Text className="text-white text-lg font-bold">
-                    {isUpgrade ? 'Upgrade Plan' : 'Subscribe Now'}
-                  </Text>
-                </LinearGradient>
-              </TouchableOpacity>
             )}
           </View>
         </View>
-      </View>
+      </TouchableOpacity>
     );
   };
 
   return (
     <View className="flex-1 bg-gray-50">
-      <StatusBar barStyle="dark-content" backgroundColor="#f9fafb" />
+      <StatusBar barStyle="dark-content" backgroundColor="#F9FAFB" />
 
-      {/* Header */}
-      <Animated.View
-        style={{
-          opacity: fadeAnim,
-          transform: [{ translateY: slideUpAnim }],
-        }}
-        className="bg-white pt-12 pb-4 px-6 shadow-sm shadow-black/5"
-      >
+      {/* HEADER */}
+      <View className="pt-12 pb-4 px-6 bg-white shadow-sm shadow-black/5 z-10">
         <View className="flex-row items-center justify-between">
-          <TouchableOpacity
-            onPress={() => navigation.goBack()}
-            className="w-10 h-10 bg-gray-100 rounded-2xl justify-center items-center"
-            activeOpacity={0.7}
-          >
-            <Ionicons name="chevron-back" size={20} color="#1A1B23" />
+          <TouchableOpacity onPress={() => navigation.goBack()} className="w-10 h-10 bg-gray-50 rounded-full items-center justify-center">
+            <Ionicons name="close" size={20} color="#1F2937" />
           </TouchableOpacity>
-
-          <View className="flex-1 items-center">
-            <Text className="text-primary text-lg font-semibold">
-              Subscription Plans
-            </Text>
-          </View>
-
-          <TouchableOpacity
-            className="w-10 h-10 bg-gray-100 rounded-2xl justify-center items-center"
-            activeOpacity={0.7}
-          >
-            <Ionicons name="information-circle" size={20} color="#1A1B23" />
-          </TouchableOpacity>
+          <Text className="text-lg font-bold text-gray-900">Subscription Plans</Text>
+          <View className="w-10" />
         </View>
-      </Animated.View>
+      </View>
 
-      <ScrollView
-        className="flex-1"
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ padding: 16 }}
-      >
-        <Animated.View
-          style={{
-            opacity: fadeAnim,
-            transform: [{ translateY: slideUpAnim }],
-          }}
-        >
-          {/* Info Card */}
-          <View className="bg-blue-50 rounded-2xl p-4 mb-6 border border-blue-100">
-            <View className="flex-row items-start">
-              <View className="w-10 h-10 bg-blue-100 rounded-xl justify-center items-center mr-3">
-                <Ionicons name="information" size={20} color="#3B82F6" />
-              </View>
-              <View className="flex-1">
-                <Text className="text-blue-900 text-sm font-semibold mb-1">
-                  Why Subscribe?
-                </Text>
-                <Text className="text-blue-700 text-xs">
-                  Lower commission rates, priority bookings, and exclusive perks to maximize your earnings!
-                </Text>
-              </View>
-            </View>
-          </View>
+      <ScrollView className="flex-1 px-4 pt-6" showsVerticalScrollIndicator={false}>
+        <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideUpAnim }] }}>
+          {/* Subscription Status Card */}
+          {currentSubscription?.status === 'active' && (
+            <View className="bg-gray-900 rounded-3xl p-6 mb-8 relative overflow-hidden">
+              <View className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full" />
+              <View className="absolute -left-10 -bottom-10 w-32 h-32 bg-white/5 rounded-full" />
 
-          {/* Current Subscription Summary */}
-          {currentSubscription && currentSubscription.status === 'active' && (
-            <View className="bg-white rounded-2xl p-4 mb-6 shadow-sm shadow-black/5">
-              <Text className="text-primary text-base font-bold mb-3">
-                Current Subscription
+              <Text className="text-gray-400 text-xs font-semibold uppercase tracking-widest mb-2">My Subscription</Text>
+              <Text className="text-white text-3xl font-bold mb-1">{currentSubscription.planName}</Text>
+              <Text className="text-gray-400 text-sm mb-6">
+                Valid until {new Date(currentSubscription.expiryDate).toLocaleDateString()}
               </Text>
-              <View className="flex-row items-center justify-between">
-                <View className="flex-1">
-                  <Text className="text-primary text-lg font-bold mb-1">
-                    {currentSubscription.planName}
-                  </Text>
-                  <Text className="text-secondary text-sm">
-                    Expires on {new Date(currentSubscription.expiryDate).toLocaleDateString()}
-                  </Text>
-                </View>
-                <View className="items-end">
-                  <Text className="text-accent text-xl font-bold">
-                    {getDaysRemaining()}
-                  </Text>
-                  <Text className="text-secondary text-xs">days left</Text>
-                </View>
+
+              <View className="flex-row items-center bg-white/10 self-start px-4 py-2 rounded-full backdrop-blur-sm">
+                <Ionicons name="time" size={16} color="#fff" />
+                <Text className="text-white ml-2 font-bold">{getDaysRemaining()} Days Left</Text>
               </View>
             </View>
           )}
 
-          {/* Plans */}
-          <Text className="text-primary text-xl font-bold mb-4">
-            Choose Your Plan
-          </Text>
+          <Text className="text-gray-900 text-xl font-bold mb-6 px-2">Available Plans</Text>
 
-          {subscriptionPlans.map(renderPlanCard)}
-
-          {/* Benefits Section */}
-          <View className="bg-gradient-to-br from-purple-50 to-blue-50 rounded-2xl p-6 mb-6">
-            <Text className="text-primary text-lg font-bold mb-4">
-              Premium Benefits
-            </Text>
-            <View className="space-y-3">
-              <View className="flex-row items-center">
-                <Ionicons name="trending-up" size={20} color="#8B5CF6" />
-                <Text className="text-secondary text-sm ml-3 flex-1">
-                  Earn more with reduced commission rates
-                </Text>
-              </View>
-              <View className="flex-row items-center">
-                <Ionicons name="notifications" size={20} color="#8B5CF6" />
-                <Text className="text-secondary text-sm ml-3 flex-1">
-                  Get priority notifications for high-value trips
-                </Text>
-              </View>
-              <View className="flex-row items-center">
-                <Ionicons name="analytics" size={20} color="#8B5CF6" />
-                <Text className="text-secondary text-sm ml-3 flex-1">
-                  Access detailed analytics and earnings insights
-                </Text>
-              </View>
-              <View className="flex-row items-center">
-                <Ionicons name="star" size={20} color="#8B5CF6" />
-                <Text className="text-secondary text-sm ml-3 flex-1">
-                  Stand out with premium badges and profile features
-                </Text>
-              </View>
+          {isLoading ? (
+            <View className="py-20 items-center">
+              <Text className="text-gray-400">Loading plans...</Text>
             </View>
-          </View>
+          ) : (
+            subscriptionPlans.map(renderPlanCard)
+          )}
+
+          <View className="h-20" />
         </Animated.View>
       </ScrollView>
 
-      {/* Confirm Subscription Modal */}
-      <Modal
-        visible={showConfirmModal}
-        transparent={true}
-        animationType="none"
-        onRequestClose={closeConfirmModal}
-      >
-        <View className="flex-1 bg-black/50 justify-end">
+      {/* UNIFIED PAYMENT MODAL */}
+      {selectedPlan && (
+        <View className="absolute inset-0 bg-black/60 z-50 justify-end">
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={closePlanModal}
+            className="absolute inset-0"
+          />
+
           <Animated.View
-            style={{
-              transform: [{ translateY: modalSlideAnim }],
-            }}
-            className="bg-white rounded-t-3xl p-6"
+            style={{ transform: [{ translateY: modalSlideAnim }] }}
+            className="bg-white rounded-t-[32px] overflow-hidden"
           >
-            <View className="items-center mb-6">
-              <View className="w-12 h-1 bg-gray-300 rounded-full mb-4" />
-              <Text className="text-primary text-xl font-bold">
-                Confirm Subscription
-              </Text>
+            {/* Modal Handle */}
+            <View className="items-center pt-4 pb-2">
+              <View className="w-12 h-1.5 bg-gray-200 rounded-full" />
             </View>
 
-            {selectedPlan && (
-              <>
-                <View className="bg-gray-50 rounded-2xl p-4 mb-6">
-                  <View className="flex-row items-center justify-between mb-3">
-                    <Text className="text-secondary text-sm">Plan</Text>
-                    <Text className="text-primary text-base font-bold">
-                      {selectedPlan.name}
-                    </Text>
-                  </View>
-                  <View className="flex-row items-center justify-between mb-3">
-                    <Text className="text-secondary text-sm">Duration</Text>
-                    <Text className="text-primary text-base font-medium capitalize">
-                      {selectedPlan.duration}
-                    </Text>
-                  </View>
-                  <View className="flex-row items-center justify-between mb-3">
-                    <Text className="text-secondary text-sm">Commission Rate</Text>
-                    <Text className="text-accent text-base font-bold">
-                      {selectedPlan.commission}%
-                    </Text>
-                  </View>
-                  <View className="h-px bg-gray-200 my-2" />
-                  <View className="flex-row items-center justify-between">
-                    <Text className="text-primary text-base font-semibold">
-                      Total Amount
-                    </Text>
-                    <Text className="text-primary text-2xl font-bold">
-                      {formatCurrency(selectedPlan.price)}
-                    </Text>
-                  </View>
+            <View className="p-6">
+              {/* Plan Summary Header */}
+              <View className="flex-row justify-between items-start mb-8">
+                <View>
+                  <Text className="text-gray-500 text-sm mb-1 uppercase font-bold tracking-wide">Selected Plan</Text>
+                  <Text className="text-gray-900 text-2xl font-bold">{selectedPlan.name}</Text>
+                  <Text className="text-gray-500">{selectedPlan.description}</Text>
                 </View>
-
-                <View className="flex-row space-x-3">
-                  <TouchableOpacity
-                    onPress={closeConfirmModal}
-                    className="flex-1 bg-gray-200 rounded-2xl py-4 justify-center items-center"
-                    activeOpacity={0.8}
-                  >
-                    <Text className="text-primary text-base font-semibold">
-                      Cancel
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    onPress={handleSubscribe}
-                    activeOpacity={0.8}
-                    className="flex-1 rounded-2xl overflow-hidden"
-                  >
-                    <LinearGradient
-                      colors={selectedPlan.gradient}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 0 }}
-                      style={{
-                        borderRadius: 16,
-                        paddingVertical: 16,
-                        justifyContent: 'center',
-                        alignItems: 'center',
-                      }}
-                    >
-                      <Text className="text-white text-base font-bold">
-                        Proceed to Pay
-                      </Text>
-                    </LinearGradient>
-                  </TouchableOpacity>
-                </View>
-              </>
-            )}
-          </Animated.View>
-        </View>
-      </Modal>
-
-      {/* Payment Modal */}
-      <Modal
-        visible={showPaymentModal}
-        transparent={true}
-        animationType="none"
-        onRequestClose={() => setShowPaymentModal(false)}
-      >
-        <View className="flex-1 bg-black/50 justify-end">
-          <Animated.View
-            style={{
-              transform: [{ translateY: modalSlideAnim }],
-            }}
-            className="bg-white rounded-t-3xl p-6"
-          >
-            <View className="items-center mb-6">
-              <View className="w-12 h-1 bg-gray-300 rounded-full mb-4" />
-              <Text className="text-primary text-xl font-bold">
-                Select Payment Method
-              </Text>
-            </View>
-
-            {selectedPlan && (
-              <View className="bg-gray-50 rounded-2xl p-4 mb-6">
-                <View className="flex-row items-center justify-between">
-                  <Text className="text-secondary text-sm">Amount to Pay</Text>
-                  <Text className="text-primary text-2xl font-bold">
-                    {formatCurrency(selectedPlan.price)}
-                  </Text>
+                <View className="items-end">
+                  <Text className="text-gray-900 text-2xl font-bold">{formatCurrency(selectedPlan.price)}</Text>
+                  <Text className="text-gray-400 text-xs">Full Access</Text>
                 </View>
               </View>
-            )}
 
-            <View className="space-y-3 mb-6">
+              {/* Feature List (Compact) */}
+              <View className="bg-gray-50 rounded-2xl p-4 mb-8 space-y-3">
+                {selectedPlan.features.slice(0, 3).map((f, i) => (
+                  <View key={i} className="flex-row items-center">
+                    <Ionicons name="checkmark-circle" size={18} color="#10B981" />
+                    <Text className="text-gray-700 ml-3 text-sm font-medium flex-1">{f}</Text>
+                  </View>
+                ))}
+              </View>
+
+              {/* Payment Options */}
+              <Text className="text-gray-900 font-bold mb-4 text-base">Select Payment Method</Text>
+
               <TouchableOpacity
                 onPress={() => handlePayment('upi')}
-                className="bg-white border-2 border-gray-200 rounded-2xl p-4 flex-row items-center"
-                activeOpacity={0.8}
+                className="bg-purple-50 p-4 rounded-2xl flex-row items-center mb-3 border border-purple-100"
+                activeOpacity={0.7}
+                disabled={processing}
               >
-                <View className="w-12 h-12 bg-purple-50 rounded-xl justify-center items-center mr-4">
-                  <Ionicons name="phone-portrait" size={24} color="#8B5CF6" />
+                <View className="w-10 h-10 bg-purple-100 rounded-full items-center justify-center mr-4">
+                  <Ionicons name="flash" size={20} color="#8B5CF6" />
                 </View>
                 <View className="flex-1">
-                  <Text className="text-primary text-base font-bold">UPI</Text>
-                  <Text className="text-secondary text-xs">
-                    Google Pay, PhonePe, Paytm
-                  </Text>
+                  <Text className="text-purple-900 font-bold text-base">Pay via UPI</Text>
+                  <Text className="text-purple-600 text-xs">GooglePay, PhonePe, Paytm</Text>
                 </View>
-                <Ionicons name="chevron-forward" size={20} color="#6C757D" />
+                {processing && <Text className="text-purple-600 font-bold">Wait...</Text>}
               </TouchableOpacity>
 
               <TouchableOpacity
                 onPress={() => handlePayment('card')}
-                className="bg-white border-2 border-gray-200 rounded-2xl p-4 flex-row items-center"
-                activeOpacity={0.8}
+                className="bg-white p-4 rounded-2xl flex-row items-center border border-gray-200"
+                activeOpacity={0.7}
+                disabled={processing}
               >
-                <View className="w-12 h-12 bg-blue-50 rounded-xl justify-center items-center mr-4">
-                  <Ionicons name="card" size={24} color="#3B82F6" />
+                <View className="w-10 h-10 bg-gray-100 rounded-full items-center justify-center mr-4">
+                  <Ionicons name="card" size={20} color="#6B7280" />
                 </View>
                 <View className="flex-1">
-                  <Text className="text-primary text-base font-bold">
-                    Credit / Debit Card
-                  </Text>
-                  <Text className="text-secondary text-xs">
-                    Visa, Mastercard, Rupay
-                  </Text>
+                  <Text className="text-gray-900 font-bold text-base">Credit / Debit Card</Text>
+                  <Text className="text-gray-500 text-xs">Visa, Mastercard</Text>
                 </View>
-                <Ionicons name="chevron-forward" size={20} color="#6C757D" />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={() => handlePayment('netbanking')}
-                className="bg-white border-2 border-gray-200 rounded-2xl p-4 flex-row items-center"
-                activeOpacity={0.8}
-              >
-                <View className="w-12 h-12 bg-green-50 rounded-xl justify-center items-center mr-4">
-                  <Ionicons name="business" size={24} color="#10B981" />
-                </View>
-                <View className="flex-1">
-                  <Text className="text-primary text-base font-bold">
-                    Net Banking
-                  </Text>
-                  <Text className="text-secondary text-xs">
-                    All major banks
-                  </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={20} color="#6C757D" />
               </TouchableOpacity>
             </View>
 
-            <TouchableOpacity
-              onPress={() => {
-                Animated.timing(modalSlideAnim, {
-                  toValue: height,
-                  duration: 300,
-                  useNativeDriver: true,
-                }).start(() => {
-                  setShowPaymentModal(false);
-                });
-              }}
-              className="bg-gray-200 rounded-2xl py-4 justify-center items-center"
-              activeOpacity={0.8}
-            >
-              <Text className="text-primary text-base font-semibold">
-                Cancel
-              </Text>
-            </TouchableOpacity>
+            {/* Safe Area Spacer for Bottom Bar */}
+            <View className="h-8 bg-white" />
           </Animated.View>
         </View>
-      </Modal>
+      )}
     </View>
   );
 };

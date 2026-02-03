@@ -1,10 +1,12 @@
-export const API_BASE_URL = 'http://192.168.29.236:3000/api';
+export const BASE_URL = 'http://192.168.1.13:3000';
+export const API_BASE_URL = `${BASE_URL}/api`;
 
 export const endpoints = {
     auth: {
         login: '/auth/login',
         register: '/auth/register',
         me: '/auth/me',
+        profile: '/auth/profile',
     },
     common: {
         upload: '/upload',
@@ -28,6 +30,8 @@ export const endpoints = {
         history: '/trips', // GET
         feed: '/trips/feed', // GET
         accept: (id) => `/trips/${id}/accept`,
+        interest: (id) => `/trips/${id}/interest`,
+        selectDriver: (id) => `/trips/${id}/select-driver`,
         status: (id) => `/trips/${id}/status`,
         details: (id) => `/trips/${id}`,
     },
@@ -53,5 +57,9 @@ export const endpoints = {
     drivers: {
         stats: '/drivers/stats',
         location: '/drivers/location', // PATCH
+        status: '/drivers/status', // PATCH
+        subscription: '/drivers/subscription',
+        earnings: '/drivers/earnings',
+        withdraw: '/drivers/withdraw',
     }
 };

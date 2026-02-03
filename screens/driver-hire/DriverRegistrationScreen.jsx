@@ -17,7 +17,15 @@ import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import '../../global.css';
 
 import { post } from '../../lib/api';
-import { endpoints } from '../../config/apiConfig';
+import { endpoints, BASE_URL } from '../../config/apiConfig';
+// ... (start of file, need to be careful with imports, better to just edit the specific part inside handleDocumentUpload and the import line)
+
+// Wait, I can't do multiple discontinuous edits with replace_file_content effectively if I don't see the context.
+// Let's stick to the specific chunks.
+
+// Chunk 1: Import
+// Chunk 2: handleDocumentUpload logic
+
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 // import { useUser } from '../../context/UserContext'; 
@@ -67,8 +75,6 @@ const DriverRegistrationScreen = ({ navigation }) => {
     drivingLicense: { uploaded: false, verified: false, fileName: '', uri: '' },
     aadharCard: { uploaded: false, verified: false, fileName: '', uri: '' },
     panCard: { uploaded: false, verified: false, fileName: '', uri: '' },
-    vehicleRC: { uploaded: false, verified: false, fileName: '', uri: '' },
-    insurance: { uploaded: false, verified: false, fileName: '', uri: '' },
     photo: { uploaded: false, verified: false, fileName: '', uri: '' },
   });
 
@@ -79,9 +85,8 @@ const DriverRegistrationScreen = ({ navigation }) => {
   const steps = [
     { id: 1, title: 'Personal Info', icon: 'person' },
     { id: 2, title: 'Experience', icon: 'car' },
-    { id: 3, title: 'Vehicle Details', icon: 'car-sport' },
-    { id: 4, title: 'Documents', icon: 'document-text' },
-    { id: 5, title: 'Bank Details', icon: 'card' },
+    { id: 3, title: 'Documents', icon: 'document-text' },
+    { id: 4, title: 'Bank Details', icon: 'card' },
   ];
 
   const vehicleTypes = [
@@ -112,20 +117,6 @@ const DriverRegistrationScreen = ({ navigation }) => {
       description: 'Required for tax purposes',
       required: true,
       icon: 'card'
-    },
-    {
-      id: 'vehicleRC',
-      name: 'Vehicle RC',
-      description: 'Registration certificate of your vehicle',
-      required: true,
-      icon: 'document'
-    },
-    {
-      id: 'insurance',
-      name: 'Vehicle Insurance',
-      description: 'Valid insurance certificate',
-      required: true,
-      icon: 'shield'
     },
     {
       id: 'photo',
@@ -171,11 +162,8 @@ const DriverRegistrationScreen = ({ navigation }) => {
       case 2:
         return formData.licenseNumber && formData.licenseExpiry && formData.yearsExperience;
       case 3:
-        return formData.vehicleType && formData.vehicleMake && formData.vehicleModel &&
-          formData.vehicleYear && formData.vehicleNumber && formData.vehicleColor;
-      case 4:
         return Object.values(documents).every(doc => doc.uploaded);
-      case 5:
+      case 4:
         return formData.bankName && formData.accountNumber && formData.ifscCode && formData.panNumber;
       default:
         return false;
@@ -188,7 +176,7 @@ const DriverRegistrationScreen = ({ navigation }) => {
       return;
     }
 
-    if (currentStep < 5) {
+    if (currentStep < 4) {
       setCurrentStep(currentStep + 1);
     } else {
       handleSubmit();
@@ -285,13 +273,16 @@ const DriverRegistrationScreen = ({ navigation }) => {
 
       if (!fileUrl) throw new Error('Upload failed - No URL returned');
 
+      // Ensure absolute URL
+      const finalUrl = fileUrl.startsWith('http') ? fileUrl : `${BASE_URL}${fileUrl}`;
+
       setDocuments(prev => ({
         ...prev,
         [type]: {
           uploaded: true,
           verified: false,
           fileName: filename,
-          uri: fileUrl,
+          uri: finalUrl,
         }
       }));
 
@@ -714,10 +705,8 @@ const DriverRegistrationScreen = ({ navigation }) => {
       case 2:
         return renderExperienceStep();
       case 3:
-        return renderVehicleStep();
-      case 4:
         return renderDocumentsStep();
-      case 5:
+      case 4:
         return renderBankDetailsStep();
       default:
         return null;

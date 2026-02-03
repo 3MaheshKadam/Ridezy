@@ -211,7 +211,9 @@ const DriverMatchingScreen = ({ navigation, route }) => {
 
       // Navigate to trip tracking after successful assignment
       setTimeout(() => {
+        const currentTripId = route.params?.tripId || tripDetails?.tripId;
         navigation.replace('TripTracking', {
+          tripId: currentTripId,
           tripDetails: {
             ...tripDetails,
             // Only pass serializable driver data (no functions)

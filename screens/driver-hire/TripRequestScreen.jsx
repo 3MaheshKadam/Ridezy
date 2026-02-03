@@ -10,6 +10,7 @@ import {
   StatusBar,
   Alert,
   Modal,
+  Linking,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
@@ -221,14 +222,26 @@ const TripRequestScreen = ({ navigation }) => {
   const getCurrentLocation = async () => {
     try {
       setIsSearching(true);
+
       let { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission Denied', 'Allow location access to use this feature.');
+        Alert.alert(
+          'Permission Denied',
+          'Allow location access to use this feature.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Open Settings', onPress: () => Linking.openSettings() }
+          ]
+        );
         setIsSearching(false);
         return;
       }
 
-      const location = await Location.getCurrentPositionAsync({});
+      // High accuracy for better results
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+
       const { latitude, longitude } = location.coords;
 
       // Reverse Geocode
@@ -238,18 +251,30 @@ const TripRequestScreen = ({ navigation }) => {
         const addr = addressResponse[0];
         const formattedAddress = `${addr.name || ''} ${addr.street || ''}, ${addr.city || ''}`.trim();
 
+        // Fallback name if nothing specific found
+        const name = addr.name || addr.street || addr.district || "Current Location";
+
         const locationData = {
-          name: addr.name || addr.street || "Current Location",
-          address: formattedAddress,
+          name: name,
+          address: formattedAddress || `Lat: ${latitude.toFixed(4)}, Long: ${longitude.toFixed(4)}`, // Fallback address
           latitude,
           longitude
         };
 
         selectLocation(locationData);
+      } else {
+        // Fallback if reverse geocoding returns empty
+        const locationData = {
+          name: "Current Location",
+          address: `Lat: ${latitude.toFixed(4)}, Long: ${longitude.toFixed(4)}`,
+          latitude,
+          longitude
+        };
+        selectLocation(locationData);
       }
     } catch (error) {
       console.log("Error getting location", error);
-      Alert.alert("Error", "Could not fetch location");
+      Alert.alert("Location Error", "Could not fetch your current location. Please ensure GPS is enabled.");
     } finally {
       setIsSearching(false);
     }

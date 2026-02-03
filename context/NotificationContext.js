@@ -1,7 +1,10 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { View, Text, TouchableOpacity, Modal } from 'react-native';
 import { get, patch } from '../lib/api';
 import { endpoints } from '../config/apiConfig';
 import { useUser } from './UserContext';
+import { Ionicons } from '@expo/vector-icons';
+import '../global.css';
 
 const NotificationContext = createContext();
 
@@ -17,12 +20,17 @@ export const NotificationProvider = ({ children }) => {
         try {
             const data = await get(endpoints.notifications.unreadCount);
             if (data && typeof data.count === 'number') {
-                setUnreadCount(data.count);
+                // If count changed and is greater than before, it means we have new notifications
+                // effectively fetch the list to update popup
+                if (data.count !== unreadCount) {
+                    setUnreadCount(data.count);
+                    fetchNotifications();
+                }
             }
         } catch (error) {
             console.log('Error fetching notification count:', error);
         }
-    }, [user]);
+    }, [user, unreadCount, fetchNotifications]);
 
     // Fetch Full List
     const fetchNotifications = useCallback(async () => {
@@ -74,6 +82,30 @@ export const NotificationProvider = ({ children }) => {
         }
     }, [user?._id]); // Only re-run if the actual user changes, not just the object reference
 
+    // Popup State
+    const [popupNotification, setPopupNotification] = useState(null);
+
+    // Initial check for high priority notifications on every fetch
+    useEffect(() => {
+        if (notifications.length > 0) {
+            // Find the most recent unread high-priority notification
+            const highPriority = notifications.find(n => !n.isRead && n.priority === 'high');
+            // Simple logic: if we have one and we haven't seen it in this session (or just show it)
+            // Ideally should track "shown" state separately, but for now showing the top unread high priority one
+            // filtering out if already in popup status
+            if (highPriority && (!popupNotification || popupNotification._id !== highPriority._id)) {
+                // Check if it was created recently (e.g., last 2 minutes) to avoid showing old ones on reload
+                const now = new Date();
+                const notifTime = new Date(highPriority.createdAt);
+                const diffMins = (now - notifTime) / 60000;
+
+                if (diffMins < 5) { // Show if within last 5 mins
+                    setPopupNotification(highPriority);
+                }
+            }
+        }
+    }, [notifications]);
+
     return (
         <NotificationContext.Provider value={{
             unreadCount,
@@ -81,7 +113,9 @@ export const NotificationProvider = ({ children }) => {
             loading,
             fetchNotifications,
             fetchUnreadCount,
-            markAsRead
+            markAsRead,
+            popupNotification,
+            setPopupNotification
         }}>
             {children}
         </NotificationContext.Provider>

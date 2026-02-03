@@ -88,7 +88,17 @@ const LoginScreen = ({ navigation }) => {
         if (normalizedRole === 'admin' || normalizedRole === 'super admin' || normalizedRole === 'super_admin') {
           navigation.replace('AdminTabs');
         } else if (normalizedRole === 'driver') {
-          navigation.replace('DriverTabs');
+          // Check Status
+          const status = response.user.status;
+          if (status === 'ACTIVE') {
+            navigation.replace('DriverTabs');
+          } else if (status === 'PENDING_ONBOARDING') {
+            // Redirect to Registration if they haven't completed it
+            navigation.replace('DriverRegistration');
+          } else {
+            // Redirect to Pending/Waiting screen (PENDING_APPROVAL)
+            navigation.replace('PendingApproval');
+          }
         } else if (normalizedRole === 'carwashcenter' || normalizedRole === 'center') {
           navigation.replace('CenterTabs');
         } else if (normalizedRole === 'owner' || normalizedRole === 'car_owner' || normalizedRole === 'car owner') {

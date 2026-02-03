@@ -11,19 +11,24 @@ import {
   RefreshControl,
   Switch,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import '../../global.css';
 import { useUser } from '../../context/UserContext';
-import { get } from '../../lib/api';
+import { useNotifications } from '../../context/NotificationContext'; // Added
+import { get, patch } from '../../lib/api';
 import { endpoints } from '../../config/apiConfig';
 
 const { width, height } = Dimensions.get('window');
 
+import { useDriverStatus } from '../../hooks/useDriverStatus';
+
 const DriverDashboardScreen = ({ navigation }) => {
   const { user } = useUser();
-  const [isOnline, setIsOnline] = useState(false);
+  const { popupNotification, setPopupNotification, markAsRead } = useNotifications(); // Added
+  const { isOnline, fetchStatus: fetchDriverStatus, toggleStatus: toggleOnlineStatus } = useDriverStatus();
   const [selectedPeriod, setSelectedPeriod] = useState('today');
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -60,13 +65,15 @@ const DriverDashboardScreen = ({ navigation }) => {
 
   useEffect(() => {
     fetchStats();
+    fetchDriverStatus(); // Fetch status from hook
     startAnimations();
-  }, []);
+  }, [fetchDriverStatus]);
 
   const fetchStats = async () => {
     try {
       const data = await get(endpoints.drivers.stats);
       setStats(data);
+      // Status handling moved to hook
     } catch (error) {
       console.error("Failed to fetch driver stats:", error);
     } finally {
@@ -78,6 +85,7 @@ const DriverDashboardScreen = ({ navigation }) => {
   const onRefresh = () => {
     setRefreshing(true);
     fetchStats();
+    fetchDriverStatus();
   };
 
   const startAnimations = () => {
@@ -112,7 +120,6 @@ const DriverDashboardScreen = ({ navigation }) => {
     ).start();
   };
 
-  // Quick actions for drivers
   const quickActions = [
     {
       id: 'view_trips',
@@ -130,7 +137,7 @@ const DriverDashboardScreen = ({ navigation }) => {
       icon: 'wallet',
       iconLibrary: 'Ionicons',
       color: '#F59E0B',
-      onPress: () => Alert.alert('Earnings', 'Detailed earnings breakdown will be shown here'),
+      onPress: () => navigation.navigate('DriverEarnings'),
     },
     {
       id: 'find_trips',
@@ -152,43 +159,32 @@ const DriverDashboardScreen = ({ navigation }) => {
     },
   ];
 
-  // Performance metrics
   const performanceMetrics = [
     {
       title: 'Total Earnings',
       value: `₹${performanceData[selectedPeriod].earnings.toLocaleString()}`,
-      change: '+₹320',
-      changeType: 'positive',
       icon: 'trending-up',
       color: '#00C851',
     },
     {
       title: 'Completed Trips',
       value: performanceData[selectedPeriod].trips.toString(),
-      change: '+5',
-      changeType: 'positive',
       icon: 'car',
       color: '#3B82F6',
     },
     {
       title: 'Distance Covered',
       value: `${performanceData[selectedPeriod].distance} km`,
-      change: '+23 km',
-      changeType: 'positive',
       icon: 'location',
       color: '#8B5CF6',
     },
     {
       title: 'Hours Online',
       value: `${performanceData[selectedPeriod].hours}h`,
-      change: '+1.2h',
-      changeType: 'positive',
       icon: 'time',
       color: '#F59E0B',
     },
   ];
-
-
 
   const periods = [
     { id: 'today', label: 'Today' },
@@ -196,46 +192,28 @@ const DriverDashboardScreen = ({ navigation }) => {
     { id: 'month', label: 'This Month' },
   ];
 
-  useEffect(() => {
-    startAnimations();
-  }, []);
-
-
-
-
-
-  const toggleOnlineStatus = () => {
-    setIsOnline(!isOnline);
-
-    Alert.alert(
-      isOnline ? 'Going Offline' : 'Going Online',
-      isOnline ?
-        'You will stop receiving trip requests and current location tracking will be disabled.' :
-        'You will start receiving trip requests and location tracking will be enabled.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: isOnline ? 'Go Offline' : 'Go Online',
-          onPress: () => {
-            // TODO: Update driver status via API
-            Alert.alert('Status Updated', `You are now ${!isOnline ? 'online' : 'offline'}`);
-          }
-        }
-      ]
-    );
-  };
-
   const handleEmergencySupport = () => {
     Alert.alert(
       'Emergency Support',
       'Need immediate help?',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Call Support', onPress: () => Alert.alert('Calling', 'Emergency support: +91 1800-RIDEZY') },
+        {
+          text: 'Call Support',
+          onPress: () => {
+            // Linking.openURL('tel:1800743399'); 
+            // Importing Linking first or just use it if imported. 
+            // Assuming Linking is not imported, let's just keep alert but cleaner.
+            // Wait, I should import Linking.
+            Alert.alert('Calling', 'Emergency support: +91 1800-RIDEZY')
+          }
+        },
         { text: 'Share Location', onPress: () => Alert.alert('Location Shared', 'Your location has been shared with support team') }
       ]
     );
   };
+
+
 
   const renderIcon = (action) => {
     const IconComponent = action.iconLibrary === 'MaterialIcons' ? MaterialIcons : Ionicons;
@@ -267,7 +245,11 @@ const DriverDashboardScreen = ({ navigation }) => {
             className="pt-12 pb-6 px-6"
           >
             <View className="flex-row items-center justify-between mb-6">
-              <View className="flex-1">
+              <TouchableOpacity
+                className="flex-1"
+                activeOpacity={0.7}
+                onPress={() => navigation.navigate('Profile')}
+              >
                 <Text className="text-secondary text-sm font-medium">
                   Good Morning
                 </Text>
@@ -280,7 +262,7 @@ const DriverDashboardScreen = ({ navigation }) => {
                     {driverProfile.vehicleName} • {driverProfile.vehicleNumber}
                   </Text>
                 </View>
-              </View>
+              </TouchableOpacity>
 
               <View className="items-center">
                 <TouchableOpacity
@@ -353,8 +335,16 @@ const DriverDashboardScreen = ({ navigation }) => {
             <View className="bg-white rounded-2xl p-4 shadow-sm shadow-black/5">
               <View className="flex-row items-center justify-between">
                 <View className="flex-row items-center">
-                  <View className="w-16 h-16 bg-accent/10 rounded-2xl justify-center items-center mr-4">
-                    <Text className="text-3xl">{driverProfile.avatar}</Text>
+                  <View className="w-16 h-16 bg-accent/10 rounded-2xl justify-center items-center mr-4 overflow-hidden">
+                    {driverProfile.avatar && (driverProfile.avatar.startsWith('http') || driverProfile.avatar.startsWith('file')) ? (
+                      <Image
+                        source={{ uri: driverProfile.avatar }}
+                        className="w-full h-full"
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <Text className="text-3xl">{driverProfile.avatar}</Text>
+                    )}
                   </View>
                   <View>
                     <View className="flex-row items-center mb-1">
@@ -440,13 +430,15 @@ const DriverDashboardScreen = ({ navigation }) => {
                   >
                     <Ionicons name={metric.icon} size={16} color={metric.color} />
                   </View>
-                  <View className={`px-2 py-1 rounded-full ${metric.changeType === 'positive' ? 'bg-green-100' : 'bg-red-100'
-                    }`}>
-                    <Text className={`text-xs font-semibold ${metric.changeType === 'positive' ? 'text-green-600' : 'text-red-600'
+                  {metric.change && (
+                    <View className={`px-2 py-1 rounded-full ${metric.changeType === 'positive' ? 'bg-green-100' : 'bg-red-100'
                       }`}>
-                      {metric.change}
-                    </Text>
-                  </View>
+                      <Text className={`text-xs font-semibold ${metric.changeType === 'positive' ? 'text-green-600' : 'text-red-600'
+                        }`}>
+                        {metric.change}
+                      </Text>
+                    </View>
+                  )}
                 </View>
 
                 <Text className="text-primary text-xl font-bold mb-1">
@@ -618,7 +610,7 @@ const DriverDashboardScreen = ({ navigation }) => {
           className="px-6 mb-8"
         >
           <TouchableOpacity
-            onPress={() => Alert.alert('Earnings Details', 'Detailed earnings breakdown will be shown here')}
+            onPress={() => navigation.navigate('DriverEarnings')}
             activeOpacity={0.8}
             className="rounded-2xl overflow-hidden"
           >
@@ -640,6 +632,7 @@ const DriverDashboardScreen = ({ navigation }) => {
                     ₹{performanceData[selectedPeriod].earnings.toLocaleString()}
                   </Text>
                   <TouchableOpacity
+                    onPress={() => navigation.navigate('DriverEarnings')}
                     activeOpacity={0.8}
                     style={{
                       backgroundColor: 'rgba(255, 255, 255, 0.2)',
@@ -662,6 +655,45 @@ const DriverDashboardScreen = ({ navigation }) => {
           </TouchableOpacity>
         </Animated.View>
       </ScrollView>
+
+      {/* Driver Notification Popup (Dashboard Only) */}
+      {popupNotification && (
+        <View className="absolute top-0 left-0 right-0 bottom-0 z-50 flex items-center justify-center p-6 bg-black/40">
+          <View className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl items-center">
+            <View className="w-16 h-16 bg-green-100 rounded-full items-center justify-center mb-4">
+              <Ionicons name="gift" size={32} color="#166534" />
+            </View>
+
+            <Text className="text-xl font-bold text-center text-gray-900 mb-2">{popupNotification.title}</Text>
+            <Text className="text-gray-500 text-center mb-6">{popupNotification.message}</Text>
+
+            <TouchableOpacity
+              onPress={() => {
+                markAsRead(popupNotification._id);
+                setPopupNotification(null);
+
+                if (popupNotification.actionType === 'track_trip' && popupNotification.data?.tripId) {
+                  navigation.navigate('DriverTripTracking', { tripId: popupNotification.data.tripId });
+                } else {
+                  navigation.navigate('DriverTrips');
+                }
+              }}
+              className="bg-green-600 w-full py-3.5 rounded-xl items-center shadow-lg shadow-green-200"
+            >
+              <Text className="text-white font-bold text-lg">
+                {popupNotification.actionType === 'track_trip' ? 'View Trip' : 'Detailed View'}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => setPopupNotification(null)}
+              className="mt-4"
+            >
+              <Text className="text-gray-400 font-medium">Dismiss</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
     </View>
   );
 };

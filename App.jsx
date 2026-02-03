@@ -17,6 +17,7 @@ import LoginScreen from './screens/auth/LoginScreen';
 import RegisterScreen from './screens/auth/RegisterScreen';
 import CarOwnerRegistrationScreen from './screens/auth/CarOwnerRegistrationScreen';
 import CarWashCenterRegistrationScreen from './screens/car-wash/CarWashCenterRegistrationScreen';
+import PendingApprovalScreen from './screens/auth/PendingApprovalScreen';
 
 // Shared Screens
 import HomeScreen from './screens/shared/HomeScreen';
@@ -47,6 +48,9 @@ import DriverRequestFeedScreen from './screens/driver-hire/DriverRequestFeedScre
 import DriverSubscription from './screens/driver-hire/DriverSubscription';
 import OwnerTripTrackingScreen from './screens/driver-hire/OwnerTripTrackingScreen';
 import DriverTripTrackingScreen from './screens/driver-hire/DriverTripTrackingScreen';
+import DriverProfileScreen from './screens/driver-hire/DriverProfileScreen';
+import DriverEarningsScreen from './screens/driver-hire/DriverEarningsScreen';
+import EditDriverProfileScreen from './screens/driver-hire/EditDriverProfileScreen';
 
 // Admin Screens
 import AdminDashboardScreen from './screens/admin/AdminDashboardScreen';
@@ -129,7 +133,7 @@ const DriverTabs = () => (
     />
     <Tab.Screen
       name="Profile"
-      component={ProfileScreen}
+      component={DriverProfileScreen}
       options={{
         headerShown: false,
         tabBarIcon: ({ color, size }) => <Ionicons name="person" size={size} color={color} />
@@ -259,6 +263,7 @@ export default function App() {
                 <Stack.Screen name="Register" component={RegisterScreen} options={{ headerShown: false }} />
                 <Stack.Screen name="CarOwnerRegistration" component={CarOwnerRegistrationScreen} options={{ headerShown: false }} />
                 <Stack.Screen name="CarWashCenterRegistration" component={CarWashCenterRegistrationScreen} options={{ headerShown: false }} />
+                <Stack.Screen name="PendingApproval" component={PendingApprovalScreen} options={{ headerShown: false }} />
 
                 {/* Shared Screens */}
                 <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
@@ -288,7 +293,8 @@ export default function App() {
                 <Stack.Screen name="DriverSubscription" component={DriverSubscription} options={{ headerShown: false }} />
                 <Stack.Screen name="OwnerTripTracking" component={OwnerTripTrackingScreen} options={{ headerShown: false }} />
                 <Stack.Screen name="DriverTripTracking" component={DriverTripTrackingScreen} options={{ headerShown: false }} />
-
+                <Stack.Screen name="DriverEarnings" component={DriverEarningsScreen} options={{ headerShown: false }} />
+                <Stack.Screen name="EditDriverProfile" component={EditDriverProfileScreen} options={{ headerShown: false }} />
 
                 {/* Admin Screens are handled in AdminTabs */}
                 {/* <Stack.Screen name="AdminDashboard" component={AdminDashboardScreen} options={{ headerShown: false }} /> */}
