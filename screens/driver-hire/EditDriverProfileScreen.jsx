@@ -17,7 +17,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import { get, patch } from '../../lib/api';
 import { endpoints, BASE_URL } from '../../config/apiConfig';
-import '../../global.css';
 import { useUser } from '../../context/UserContext';
 
 const EditDriverProfileScreen = ({ navigation }) => {

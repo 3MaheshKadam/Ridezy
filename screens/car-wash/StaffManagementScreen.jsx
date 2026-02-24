@@ -16,8 +16,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { get, post, del } from '../../lib/api';
 import { endpoints } from '../../config/apiConfig';
-import '../../global.css';
-
 const { width, height } = Dimensions.get('window');
 
 const StaffManagementScreen = ({ navigation }) => {

@@ -11,13 +11,16 @@ import {
   Alert,
   Modal,
   Switch,
+  Linking,
+  Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
-import '../../global.css';
+import * as DocumentPicker from 'expo-document-picker';
+import * as ImagePicker from 'expo-image-picker';
 import { useUser } from '../../context/UserContext';
-import { get, patch } from '../../lib/api';
-import { endpoints } from '../../config/apiConfig';
+import { get, patch, post } from '../../lib/api';
+import { endpoints, BASE_URL } from '../../config/apiConfig';
 import MapView, { Marker } from 'react-native-maps';
 import { reverseGeocode } from '../../lib/locationService';
 
@@ -32,14 +35,16 @@ const ProfileScreen = ({ navigation }) => {
     phone: user?.phone || '+91 00000 00000',
     address: user?.address || 'Address not set',
     avatar: '👨‍💼',
+    photo: null, // real profile photo URL
     roles: [user?.role?.toLowerCase() || 'carOwner'],
     primaryRole: user?.role?.toLowerCase() || 'carOwner',
-    rating: 4.8,
-    totalTrips: 24,
-    totalEarnings: 12500,
+    rating: 0,
+    totalTrips: 0,
+    totalEarnings: 0,
     memberSince: '2023',
     verified: true,
   });
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   const [editMode, setEditMode] = useState(false);
   const [showRoleModal, setShowRoleModal] = useState(false);
@@ -73,17 +78,146 @@ const ProfileScreen = ({ navigation }) => {
   const [notifications, setNotifications] = useState(true);
   const [locationTracking, setLocationTracking] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
+  // Image preview modal for documents
+  const [previewModal, setPreviewModal] = useState({ visible: false, url: null, label: '' });
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideUpAnim = useRef(new Animated.Value(30)).current;
   const modalSlideAnim = useRef(new Animated.Value(height)).current;
 
-  // Document verification status
-  const documentStatus = {
-    drivingLicense: { uploaded: true, verified: true },
-    aadharCard: { uploaded: true, verified: true },
-    vehicleRC: { uploaded: false, verified: false },
-    insurance: { uploaded: false, verified: false },
+  // Document state — RC & Insurance fetched from registered vehicle
+  // Label, backend field key, and live URL from vehicle data
+  const [documentStatus, setDocumentStatus] = useState({
+    vehicleRC: { label: 'Vehicle RC', uploaded: false, verified: false, url: null },
+    insurance: { label: 'Insurance', uploaded: false, verified: false, url: null },
+  });
+
+  // Load vehicle docs into profile doc state
+  const loadVehicleDocuments = async () => {
+    try {
+      const res = await get(endpoints.vehicles.list);
+      const vehicles = res?.vehicles || res || [];
+      if (vehicles.length > 0) {
+        const firstVehicle = vehicles[0];
+        setDocumentStatus(prev => ({
+          ...prev,
+          vehicleRC: {
+            ...prev.vehicleRC,
+            uploaded: !!firstVehicle.rcDocumentUrl,
+            verified: !!firstVehicle.isApproved,
+            url: firstVehicle.rcDocumentUrl || null,
+          },
+          insurance: {
+            ...prev.insurance,
+            uploaded: !!firstVehicle.insuranceUrl,
+            verified: !!firstVehicle.isApproved,
+            url: firstVehicle.insuranceUrl || null,
+          },
+        }));
+      }
+    } catch (e) {
+      console.log('Vehicle doc fetch error:', e);
+    }
+  };
+
+  // Safe URL opener — shows images in-app, opens PDFs in browser
+  const openDocumentUrl = async (url, label) => {
+    if (!url) {
+      Alert.alert('No Document', 'No document URL found for this item.');
+      return;
+    }
+    // Resolve relative path to absolute URL
+    const fullUrl = url.startsWith('/') ? `${BASE_URL}${url}` : url;
+    // Check if it's an image
+    const isImage = /\.(jpg|jpeg|png|webp|gif)$/i.test(fullUrl);
+    if (isImage) {
+      // Show in-app preview modal
+      setPreviewModal({ visible: true, url: fullUrl, label: label || 'Document' });
+    } else {
+      // For PDFs or unknown types, open in browser
+      try {
+        const supported = await Linking.canOpenURL(fullUrl);
+        if (supported) {
+          await Linking.openURL(fullUrl);
+        } else {
+          Alert.alert('Cannot Open', `Unable to open:\n${fullUrl}`);
+        }
+      } catch (err) {
+        Alert.alert('Error', 'Something went wrong while opening the document.');
+      }
+    }
+  };
+
+  // Open existing doc URL in browser, or launch DocumentPicker to (re)upload
+  const handleDocumentAction = async (docType, status) => {
+    if (status.verified && status.url) {
+      // View existing doc
+      Alert.alert(
+        status.label,
+        'What would you like to do?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'View Document', onPress: () => openDocumentUrl(status.url, status.label) },
+          { text: 'Replace', onPress: () => pickAndUploadDocument(docType) },
+        ]
+      );
+    } else if (status.uploaded && status.url) {
+      // Under review — allow view or replace
+      Alert.alert(
+        `${status.label} — Under Review`,
+        'Your document is being reviewed by our team.',
+        [
+          { text: 'OK', style: 'cancel' },
+          { text: 'View', onPress: () => openDocumentUrl(status.url, status.label) },
+          { text: 'Replace', onPress: () => pickAndUploadDocument(docType) },
+        ]
+      );
+    } else {
+      // Not yet uploaded
+      pickAndUploadDocument(docType);
+    }
+  };
+
+  const pickAndUploadDocument = async (docType) => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['application/pdf', 'image/*'],
+        copyToCacheDirectory: true,
+      });
+
+      if (result.canceled) return;
+
+      const file = result.assets[0];
+      const formDataPayload = new FormData();
+      formDataPayload.append('file', {
+        uri: file.uri,
+        name: file.name,
+        type: file.mimeType || 'application/octet-stream',
+      });
+
+      setIsLoading(true);
+      const response = await post(endpoints.common.upload, formDataPayload);
+      const fileUrl = response?.url || response?.fileUrl || response?.secure_url;
+
+      if (!fileUrl) throw new Error('Upload failed - no URL returned');
+
+      setDocumentStatus(prev => ({
+        ...prev,
+        [docType]: {
+          ...prev[docType],
+          uploaded: true,
+          verified: false,
+          url: fileUrl,
+        }
+      }));
+
+      Alert.alert('Uploaded!', `${documentStatus[docType]?.label || docType} submitted for review.`);
+    } catch (err) {
+      console.error('Upload error:', err);
+      Alert.alert('Upload Failed', 'Could not upload document. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const menuItems = [
@@ -93,7 +227,7 @@ const ProfileScreen = ({ navigation }) => {
       subtitle: `${userProfile.totalTrips} completed`,
       icon: 'car',
       iconLibrary: 'Ionicons',
-      onPress: () => Alert.alert('My Trips', 'Trip history will be shown here'),
+      onPress: () => navigation.navigate('OwnerTrips'),
     },
     {
       id: 'earnings',
@@ -102,7 +236,7 @@ const ProfileScreen = ({ navigation }) => {
       icon: 'wallet',
       iconLibrary: 'Ionicons',
       showForRoles: ['driver'],
-      onPress: () => Alert.alert('Earnings', 'Earnings details will be shown here'),
+      onPress: () => navigation.navigate('DriverEarnings'),
     },
     {
       id: 'documents',
@@ -118,23 +252,8 @@ const ProfileScreen = ({ navigation }) => {
       subtitle: 'Add or manage vehicles',
       icon: 'car-sport',
       iconLibrary: 'Ionicons',
-      onPress: () => Alert.alert('My Vehicles', 'Vehicle management will be shown here'),
-    },
-    {
-      id: 'payment',
-      title: 'Payment Methods',
-      subtitle: 'Cards, wallets & more',
-      icon: 'card',
-      iconLibrary: 'Ionicons',
-      onPress: () => Alert.alert('Payment Methods', 'Payment management will be shown here'),
-    },
-    {
-      id: 'referral',
-      title: 'Refer & Earn',
-      subtitle: 'Invite friends, earn rewards',
-      icon: 'gift',
-      iconLibrary: 'Ionicons',
-      onPress: () => Alert.alert('Refer & Earn', 'Referral program details will be shown here'),
+      showForRoles: ['carowner', 'driver'],
+      onPress: () => Alert.alert('Coming Soon', 'Vehicle management will be available in the next update.'),
     },
     {
       id: 'support',
@@ -143,14 +262,6 @@ const ProfileScreen = ({ navigation }) => {
       icon: 'help-circle',
       iconLibrary: 'Ionicons',
       onPress: () => navigation.navigate('Support'),
-    },
-    {
-      id: 'settings',
-      title: 'Settings',
-      subtitle: 'Privacy, notifications & more',
-      icon: 'settings',
-      iconLibrary: 'Ionicons',
-      onPress: () => Alert.alert('Settings', 'Settings will be shown here'),
     },
   ];
 
@@ -177,19 +288,86 @@ const ProfileScreen = ({ navigation }) => {
 
   const loadUserProfile = async () => {
     try {
-      const data = await get(endpoints.auth.me);
-      if (data && data.user) {
+      const [authData, statsData] = await Promise.all([
+        get(endpoints.auth.me),
+        get(endpoints.user.stats)
+      ]);
+
+      if (authData && authData.user) {
         setUserProfile(prev => ({
           ...prev,
-          name: data.user.full_name || data.user.name || prev.name,
-          email: data.user.email || prev.email,
-          phone: data.user.phone || prev.phone,
-          address: data.user.address || prev.address,
-          primaryRole: data.user.role?.toLowerCase() || prev.primaryRole,
+          name: authData.user.full_name || authData.user.name || prev.name,
+          email: authData.user.email || prev.email,
+          phone: authData.user.phone || prev.phone,
+          address: authData.user.address || prev.address,
+          primaryRole: authData.user.role?.toLowerCase() || prev.primaryRole,
+          memberSince: authData.user.createdAt ? new Date(authData.user.createdAt).getFullYear().toString() : prev.memberSince,
+          photo: authData.user.photo || authData.user.profilePhoto || null,
         }));
       }
+
+      if (statsData && statsData.stats) {
+        setUserProfile(prev => ({
+          ...prev,
+          rating: statsData.stats.rating || prev.rating,
+          totalTrips: statsData.stats.totalTrips || prev.totalTrips,
+          totalEarnings: statsData.stats.earnings || prev.totalEarnings,
+        }));
+      }
+
+      // Fetch vehicle docs separately
+      loadVehicleDocuments();
     } catch (error) {
       console.log('Profile load error:', error);
+    }
+  };
+
+  const pickAndUploadProfilePhoto = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission Required', 'Please allow access to your photo library.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      const asset = result.assets[0];
+      setUploadingPhoto(true);
+      try {
+        const formPayload = new FormData();
+        formPayload.append('file', {
+          uri: asset.uri,
+          name: 'profile_photo.jpg',
+          type: 'image/jpeg',
+        });
+
+        const response = await fetch(`${BASE_URL}/api${endpoints.common.upload}`, {
+          method: 'POST',
+          body: formPayload,
+          // Do NOT set Content-Type manually — React Native sets it with the multipart boundary automatically
+        });
+
+        const uploadResult = await response.json();
+        const photoUrl = uploadResult?.url || asset.uri;
+
+        // Save to backend
+        await patch('/auth/profile', { photo: photoUrl });
+
+        // Update local state
+        setUserProfile(prev => ({ ...prev, photo: photoUrl }));
+        Alert.alert('Success', 'Profile photo updated!');
+      } catch (err) {
+        console.error('Photo upload failed:', err);
+        Alert.alert('Error', 'Failed to upload photo. Please try again.');
+      } finally {
+        setUploadingPhoto(false);
+      }
     }
   };
 
@@ -372,10 +550,26 @@ const ProfileScreen = ({ navigation }) => {
           <View className="items-center mb-6">
             {/* Avatar */}
             <TouchableOpacity
-              className="w-24 h-24 bg-accent/10 rounded-3xl justify-center items-center mb-4"
+              onPress={pickAndUploadProfilePhoto}
+              disabled={uploadingPhoto}
+              style={{ width: 96, height: 96, borderRadius: 48, overflow: 'hidden', marginBottom: 16, backgroundColor: '#F0FFF4', justifyContent: 'center', alignItems: 'center' }}
               activeOpacity={0.8}
             >
-              <Text className="text-5xl">{userProfile.avatar}</Text>
+              {userProfile.photo ? (
+                <Image
+                  source={{ uri: userProfile.photo.startsWith('/') ? `${BASE_URL}${userProfile.photo}` : userProfile.photo }}
+                  style={{ width: 96, height: 96, borderRadius: 48 }}
+                  resizeMode="cover"
+                />
+              ) : (
+                <Text style={{ fontSize: 48 }}>{userProfile.avatar}</Text>
+              )}
+              {/* Camera overlay */}
+              <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.35)', height: 28, justifyContent: 'center', alignItems: 'center' }}>
+                {uploadingPhoto
+                  ? <Text style={{ color: 'white', fontSize: 10 }}>...</Text>
+                  : <Ionicons name="camera" size={14} color="white" />}
+              </View>
             </TouchableOpacity>
 
             {/* Name */}
@@ -867,30 +1061,30 @@ const ProfileScreen = ({ navigation }) => {
                 >
                   <View className="flex-1">
                     <Text className="text-primary text-base font-medium mb-1">
-                      {docType.replace(/([A-Z])/g, ' $1').trim()}
+                      {status.label}
                     </Text>
                     <View className="flex-row items-center">
                       <Ionicons
-                        name={status.verified ? "checkmark-circle" : status.uploaded ? "time" : "close-circle"}
+                        name={status.verified ? "checkmark-circle" : status.uploaded ? "time" : "cloud-upload-outline"}
                         size={16}
-                        color={status.verified ? "#00C851" : status.uploaded ? "#F59E0B" : "#dc2626"}
+                        color={status.verified ? "#00C851" : status.uploaded ? "#F59E0B" : "#6C757D"}
                       />
-                      <Text className={`text-sm font-medium ml-2 ${status.verified ? 'text-green-600' : status.uploaded ? 'text-yellow-600' : 'text-red-600'
+                      <Text className={`text-sm font-medium ml-2 ${status.verified ? 'text-green-600' : status.uploaded ? 'text-yellow-600' : 'text-secondary'
                         }`}>
-                        {status.verified ? 'Verified' : status.uploaded ? 'Under Review' : 'Not Uploaded'}
+                        {status.verified ? 'Verified ✓' : status.uploaded ? 'Under Review' : 'Not Uploaded'}
                       </Text>
                     </View>
                   </View>
 
                   <TouchableOpacity
-                    onPress={() => Alert.alert('Document Upload', `Upload ${docType} functionality will be implemented`)}
-                    className={`px-4 py-2 rounded-xl ${status.verified ? 'bg-green-100' : 'bg-accent/10'
+                    onPress={() => handleDocumentAction(docType, status)}
+                    className={`px-4 py-2 rounded-xl ${status.verified ? 'bg-green-100' : status.uploaded ? 'bg-yellow-100' : 'bg-accent/10'
                       }`}
                     activeOpacity={0.8}
                   >
-                    <Text className={`text-sm font-semibold ${status.verified ? 'text-green-600' : 'text-accent'
+                    <Text className={`text-sm font-semibold ${status.verified ? 'text-green-600' : status.uploaded ? 'text-yellow-700' : 'text-accent'
                       }`}>
-                      {status.verified ? 'View' : status.uploaded ? 'Update' : 'Upload'}
+                      {status.verified ? 'View / Replace' : status.uploaded ? 'Update' : 'Upload'}
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -907,6 +1101,55 @@ const ProfileScreen = ({ navigation }) => {
               </Text>
             </TouchableOpacity>
           </Animated.View>
+        </View>
+      </Modal>
+
+      {/* In-App Document Image Preview Modal */}
+      <Modal
+        visible={previewModal.visible}
+        transparent={false}
+        animationType="slide"
+        onRequestClose={() => setPreviewModal(p => ({ ...p, visible: false }))}
+      >
+        <View style={{ flex: 1, backgroundColor: '#000' }}>
+          {/* Header */}
+          <View style={{
+            paddingTop: 48,
+            paddingBottom: 12,
+            paddingHorizontal: 16,
+            backgroundColor: '#111',
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}>
+            <Text style={{ color: '#fff', fontSize: 17, fontWeight: '600', flex: 1 }} numberOfLines={1}>
+              {previewModal.label}
+            </Text>
+            <TouchableOpacity
+              onPress={() => setPreviewModal(p => ({ ...p, visible: false }))}
+              style={{ padding: 8 }}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="close" size={26} color="#fff" />
+            </TouchableOpacity>
+          </View>
+
+          {/* Image fills the rest of the screen */}
+          <ScrollView
+            contentContainerStyle={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}
+            maximumZoomScale={4}
+            minimumZoomScale={1}
+          >
+            {previewModal.url ? (
+              <Image
+                source={{ uri: previewModal.url }}
+                style={{ width: width, height: height * 0.8 }}
+                resizeMode="contain"
+              />
+            ) : (
+              <Text style={{ color: '#fff' }}>No image URL</Text>
+            )}
+          </ScrollView>
         </View>
       </Modal>
     </View >

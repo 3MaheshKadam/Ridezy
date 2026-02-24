@@ -9,21 +9,27 @@ import {
     Alert,
     Image,
     Switch,
-    Modal
+    Modal,
+    Linking,
+    Dimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
-import '../../global.css';
+import * as DocumentPicker from 'expo-document-picker';
 import { useUser } from '../../context/UserContext';
-import { get } from '../../lib/api';
-import { endpoints } from '../../config/apiConfig';
+import { get, post } from '../../lib/api';
+import { endpoints, BASE_URL } from '../../config/apiConfig';
 import { useDriverStatus } from '../../hooks/useDriverStatus';
 
 const DriverProfileScreen = ({ navigation }) => {
     const { user, logout } = useUser();
     const { isOnline, toggleStatus: toggleOnlineStatus, fetchStatus: fetchDriverStatus } = useDriverStatus();
+    const { width, height } = Dimensions.get('window');
     const [notificationsEnabled, setNotificationsEnabled] = useState(true);
     const [showDocsModal, setShowDocsModal] = useState(false);
+    // Image preview state
+    const [previewModal, setPreviewModal] = useState({ visible: false, url: null, label: '' });
+    const [isUploading, setIsUploading] = useState(false);
 
     // Local state for profile data
     const [driverProfile, setDriverProfile] = useState({
@@ -150,11 +156,70 @@ const DriverProfileScreen = ({ navigation }) => {
         return key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
     };
 
+    // Open image in-app, PDF in browser
+    const openDocumentUrl = async (url, label) => {
+        if (!url) return;
+        const fullUrl = url.startsWith('/') ? `${BASE_URL}${url}` : url;
+        const isImage = /\.(jpg|jpeg|png|webp|gif)$/i.test(fullUrl);
+        if (isImage) {
+            setPreviewModal({ visible: true, url: fullUrl, label: label || 'Document' });
+        } else {
+            try {
+                const supported = await Linking.canOpenURL(fullUrl);
+                if (supported) await Linking.openURL(fullUrl);
+                else Alert.alert('Cannot Open', `Unable to open: ${fullUrl}`);
+            } catch {
+                Alert.alert('Error', 'Something went wrong opening the document.');
+            }
+        }
+    };
+
+    // Pick a file and upload it to the server, then update local driverProfile state
+    const pickAndUploadDocument = async (docKey, label) => {
+        try {
+            const result = await DocumentPicker.getDocumentAsync({
+                type: ['application/pdf', 'image/*'],
+                copyToCacheDirectory: true,
+            });
+            if (result.canceled) return;
+
+            const file = result.assets[0];
+            const formDataPayload = new FormData();
+            formDataPayload.append('file', {
+                uri: file.uri,
+                name: file.name,
+                type: file.mimeType || 'application/octet-stream',
+            });
+
+            setIsUploading(true);
+            const response = await post(endpoints.common.upload, formDataPayload);
+            const fileUrl = response?.url || response?.fileUrl || response?.secure_url;
+            if (!fileUrl) throw new Error('Upload failed - no URL returned');
+
+            // Update local document state
+            setDriverProfile(prev => ({
+                ...prev,
+                documents: {
+                    ...prev.documents,
+                    [docKey]: fileUrl,
+                }
+            }));
+
+            Alert.alert('Uploaded!', `${label} submitted for review.`);
+        } catch (err) {
+            console.error('Upload error:', err);
+            Alert.alert('Upload Failed', 'Could not upload document. Please try again.');
+        } finally {
+            setIsUploading(false);
+        }
+    };
+
     const allowedDocuments = {
         drivingLicense: 'Driving License',
         aadharCard: 'Aadhar Card',
         photo: 'Profile Photo'
     };
+
 
     const menuGroups = [
         {
@@ -372,32 +437,98 @@ const DriverProfileScreen = ({ navigation }) => {
                             <Ionicons name="close" size={24} color="#374151" />
                         </TouchableOpacity>
                     </View>
-                    <ScrollView className="p-6">
-                        {Object.keys(driverProfile.documents).length === 0 ? (
-                            <View className="items-center py-10">
-                                <Ionicons name="document-text-outline" size={64} color="#9CA3AF" />
-                                <Text className="text-gray-400 mt-4">No documents uploaded</Text>
-                            </View>
-                        ) : (
-                            Object.entries(allowedDocuments).map(([key, label]) => {
-                                const url = driverProfile.documents[key];
-                                if (!url) return null;
+                    <ScrollView className="p-4">
+                        {Object.entries(allowedDocuments).map(([key, label]) => {
+                            const url = driverProfile.documents[key];
+                            const fullUrl = url ? (url.startsWith('/') ? `${BASE_URL}${url}` : url) : null;
+                            const isImage = fullUrl && /\.(jpg|jpeg|png|webp|gif)$/i.test(fullUrl);
 
-                                return (
-                                    <View key={key} className="bg-white rounded-xl overflow-hidden mb-6 shadow-sm border border-gray-100">
-                                        <View className="p-4 border-b border-gray-50 bg-gray-50/50">
-                                            <Text className="text-gray-900 font-bold">{label}</Text>
+                            return (
+                                <View key={key} className="bg-white rounded-2xl mb-4 shadow-sm border border-gray-100 overflow-hidden">
+                                    {/* Label row */}
+                                    <View className="flex-row items-center justify-between p-4 border-b border-gray-50">
+                                        <View className="flex-row items-center">
+                                            <Ionicons
+                                                name={fullUrl ? 'checkmark-circle' : 'cloud-upload-outline'}
+                                                size={20}
+                                                color={fullUrl ? '#00C851' : '#9CA3AF'}
+                                            />
+                                            <Text className="text-gray-900 font-bold ml-2">{label}</Text>
                                         </View>
-                                        <Image
-                                            source={{ uri: url }}
-                                            style={{ width: '100%', height: 200 }}
-                                            resizeMode="cover"
-                                        />
+                                        <Text className={`text-xs font-semibold ${fullUrl ? 'text-green-600' : 'text-gray-400'}`}>
+                                            {fullUrl ? 'Uploaded' : 'Not Uploaded'}
+                                        </Text>
                                     </View>
-                                );
-                            })
-                        )}
+
+                                    {/* Thumbnail if image */}
+                                    {isImage && (
+                                        <TouchableOpacity onPress={() => setPreviewModal({ visible: true, url: fullUrl, label })}>
+                                            <Image
+                                                source={{ uri: fullUrl }}
+                                                style={{ width: '100%', height: 160 }}
+                                                resizeMode="cover"
+                                            />
+                                            <View className="absolute bottom-2 right-2 bg-black/50 px-2 py-1 rounded-full flex-row items-center">
+                                                <Ionicons name="expand-outline" size={12} color="#fff" />
+                                                <Text className="text-white text-xs ml-1">Tap to expand</Text>
+                                            </View>
+                                        </TouchableOpacity>
+                                    )}
+
+                                    {/* Action buttons */}
+                                    <View className="flex-row p-3 gap-2">
+                                        {fullUrl && (
+                                            <TouchableOpacity
+                                                onPress={() => openDocumentUrl(url, label)}
+                                                className="flex-1 bg-blue-50 border border-blue-100 py-2.5 rounded-xl items-center"
+                                            >
+                                                <Text className="text-blue-600 text-sm font-semibold">View</Text>
+                                            </TouchableOpacity>
+                                        )}
+                                        <TouchableOpacity
+                                            onPress={() => pickAndUploadDocument(key, label)}
+                                            disabled={isUploading}
+                                            className={`flex-1 py-2.5 rounded-xl items-center ${fullUrl ? 'bg-gray-100' : 'bg-primary'}`}
+                                        >
+                                            <Text className={`text-sm font-semibold ${fullUrl ? 'text-gray-700' : 'text-white'}`}>
+                                                {isUploading ? 'Uploading...' : fullUrl ? 'Replace' : 'Upload'}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                </View>
+                            );
+                        })}
                         <View className="h-10" />
+                    </ScrollView>
+                </View>
+            </Modal>
+
+            {/* In-App Image Preview Modal */}
+            <Modal
+                visible={previewModal.visible}
+                transparent={false}
+                animationType="slide"
+                onRequestClose={() => setPreviewModal(p => ({ ...p, visible: false }))}
+            >
+                <View style={{ flex: 1, backgroundColor: '#000' }}>
+                    <View style={{ paddingTop: 48, paddingBottom: 12, paddingHorizontal: 16, backgroundColor: '#111', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <Text style={{ color: '#fff', fontSize: 17, fontWeight: '600', flex: 1 }} numberOfLines={1}>
+                            {previewModal.label}
+                        </Text>
+                        <TouchableOpacity onPress={() => setPreviewModal(p => ({ ...p, visible: false }))} style={{ padding: 8 }}>
+                            <Ionicons name="close" size={26} color="#fff" />
+                        </TouchableOpacity>
+                    </View>
+                    <ScrollView contentContainerStyle={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                        {previewModal.url ? (
+                            <Image
+                                source={{ uri: previewModal.url }}
+                                style={{ width: width, height: height * 0.8 }}
+                                resizeMode="contain"
+                            />
+                        ) : (
+                            <Text style={{ color: '#fff' }}>No image URL</Text>
+                        )}
                     </ScrollView>
                 </View>
             </Modal>

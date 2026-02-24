@@ -11,8 +11,6 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
-import '../../global.css';
-
 const { width, height } = Dimensions.get('window');
 
 const WelcomeScreen = ({ navigation }) => {

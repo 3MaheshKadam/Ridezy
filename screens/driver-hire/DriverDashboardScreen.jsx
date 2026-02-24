@@ -15,7 +15,6 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
-import '../../global.css';
 import { useUser } from '../../context/UserContext';
 import { useNotifications } from '../../context/NotificationContext'; // Added
 import { get, patch } from '../../lib/api';
@@ -363,9 +362,9 @@ const DriverDashboardScreen = ({ navigation }) => {
                 </View>
 
                 <View className="items-end">
-                  <View className="bg-green-100 px-3 py-1 rounded-full">
-                    <Text className="text-green-600 text-sm font-semibold">
-                      Verified
+                  <View className={`px-3 py-1 rounded-full ${driverProfile.verificationStatus === 'verified' ? 'bg-green-100' : 'bg-yellow-100'}`}>
+                    <Text className={`text-sm font-semibold ${driverProfile.verificationStatus === 'verified' ? 'text-green-600' : 'text-yellow-600'}`}>
+                      {driverProfile.verificationStatus === 'verified' ? 'Verified ✓' : 'Pending Review'}
                     </Text>
                   </View>
                 </View>

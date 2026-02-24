@@ -5,8 +5,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useUser } from '../../context/UserContext';
 import { get } from '../../lib/api';
 import { endpoints } from '../../config/apiConfig';
-import '../../global.css';
-
 const PendingApprovalScreen = ({ navigation }) => {
     const { user, logout, updateUser } = useUser();
     const [isChecking, setIsChecking] = useState(false);

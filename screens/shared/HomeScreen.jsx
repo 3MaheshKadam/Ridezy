@@ -12,7 +12,6 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
-import '../../global.css';
 import { get } from '../../lib/api';
 import { endpoints } from '../../config/apiConfig';
 
@@ -42,20 +41,21 @@ const HomeScreen = ({ navigation }) => {
   const [isDriverOnline, setIsDriverOnline] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [stats, setStats] = useState({
-    totalTrips: 24,
-    totalWashes: 12,
-    earnings: 2850,
-    rating: 4.8,
-    pendingBookings: 3,
+    totalTrips: 0,
+    totalWashes: 0,
+    earnings: 0,
+    rating: 0,
+    pendingBookings: 0,
   });
+  const [activities, setActivities] = useState([]);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideUpAnim = useRef(new Animated.Value(30)).current;
 
   useEffect(() => {
     startAnimations();
-    // loadUserData(); // Data is now coming from Context
-  }, []);
+    loadUserData();
+  }, [user]);
 
   const startAnimations = () => {
     Animated.parallel([
@@ -75,12 +75,22 @@ const HomeScreen = ({ navigation }) => {
 
   const loadUserData = async () => {
     try {
-      const response = await get(endpoints.auth.me);
-      if (response) {
-        updateProfile(response);
+      // Data is mostly in context now, but we fetch stats/activity
+      const [statsRes, activityRes] = await Promise.all([
+        get(endpoints.user.stats),
+        get(endpoints.user.activity)
+      ]);
+
+      if (statsRes && statsRes.stats) {
+        setStats(statsRes.stats);
       }
+
+      if (activityRes && activityRes.activities) {
+        setActivities(activityRes.activities);
+      }
+
     } catch (error) {
-      console.error('Failed to refresh user data:', error);
+      console.error('Failed to load dynamic data:', error);
     }
   };
 
@@ -388,7 +398,7 @@ const HomeScreen = ({ navigation }) => {
             <Text className="text-primary text-lg font-bold">
               Recent Activity
             </Text>
-            <TouchableOpacity activeOpacity={0.7}>
+            <TouchableOpacity onPress={() => navigation.navigate('OwnerTrips')} activeOpacity={0.7}>
               <Text className="text-accent text-sm font-semibold">
                 View All
               </Text>
@@ -396,45 +406,30 @@ const HomeScreen = ({ navigation }) => {
           </View>
 
           <View className="space-y-3">
-            {/* Activity Item 1 */}
-            <View className="bg-white rounded-2xl p-4 shadow-sm shadow-black/5 border border-gray-100">
-              <View className="flex-row items-center">
-                <View className="w-10 h-10 bg-accent/10 rounded-full justify-center items-center mr-3">
-                  <MaterialIcons name="local-car-wash" size={16} color="#00C851" />
+            {activities.length > 0 ? (
+              activities.map((activity, index) => (
+                <View key={activity.id || index} className="bg-white rounded-2xl p-4 shadow-sm shadow-black/5 border border-gray-100">
+                  <View className="flex-row items-center">
+                    <View className={`w-10 h-10 ${activity.type === 'WASH' ? 'bg-accent/10' : 'bg-primary/10'} rounded-full justify-center items-center mr-3`}>
+                      <Ionicons name={activity.type === 'WASH' ? 'water' : 'car'} size={16} color={activity.type === 'WASH' ? '#00C851' : '#1A1B23'} />
+                    </View>
+                    <View className="flex-1">
+                      <Text className="text-primary text-sm font-semibold mb-1">
+                        {activity.title}
+                      </Text>
+                      <Text className="text-secondary text-xs">
+                        {activity.subtitle} • ₹{activity.price}
+                      </Text>
+                    </View>
+                    <Text className="text-secondary text-xs">
+                      {new Date(activity.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                    </Text>
+                  </View>
                 </View>
-                <View className="flex-1">
-                  <Text className="text-primary text-sm font-semibold mb-1">
-                    Car Wash Completed
-                  </Text>
-                  <Text className="text-secondary text-xs">
-                    Premium wash at Downtown Center • ₹299
-                  </Text>
-                </View>
-                <Text className="text-secondary text-xs">
-                  2h ago
-                </Text>
-              </View>
-            </View>
-
-            {/* Activity Item 2 */}
-            <View className="bg-white rounded-2xl p-4 shadow-sm shadow-black/5 border border-gray-100">
-              <View className="flex-row items-center">
-                <View className="w-10 h-10 bg-primary/10 rounded-full justify-center items-center mr-3">
-                  <Ionicons name="car" size={16} color="#1A1B23" />
-                </View>
-                <View className="flex-1">
-                  <Text className="text-primary text-sm font-semibold mb-1">
-                    Trip to Airport
-                  </Text>
-                  <Text className="text-secondary text-xs">
-                    Professional driver • 45 min ride • ₹850
-                  </Text>
-                </View>
-                <Text className="text-secondary text-xs">
-                  1d ago
-                </Text>
-              </View>
-            </View>
+              ))
+            ) : (
+              <Text className="text-center text-secondary py-4 italic">No recent activity found.</Text>
+            )}
           </View>
         </Animated.View>
 

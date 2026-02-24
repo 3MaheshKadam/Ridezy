@@ -3,7 +3,6 @@ import { View, Text, TouchableOpacity, SafeAreaView, StatusBar, Alert, ActivityI
 import { Ionicons } from '@expo/vector-icons';
 import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
 import * as Location from 'expo-location';
-import '../../global.css';
 import { post, patch, get } from '../../lib/api';
 import { endpoints } from '../../config/apiConfig';
 import { calculateDistance, searchLocations } from '../../lib/locationService';

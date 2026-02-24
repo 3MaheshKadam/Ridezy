@@ -14,8 +14,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
-import '../../global.css';
-import { post } from '../../lib/api';
+import { get, post } from '../../lib/api';
 import { endpoints } from '../../config/apiConfig';
 import { searchLocations, calculateDistance } from '../../lib/locationService';
 import * as Location from 'expo-location';
@@ -23,7 +22,7 @@ import * as Location from 'expo-location';
 const { width, height } = Dimensions.get('window');
 
 
-const TripRequestScreen = ({ navigation }) => {
+const TripRequestScreen = ({ navigation, route }) => {
   const [pickupLocation, setPickupLocation] = useState(null); // Changed to object
   const [dropoffLocation, setDropoffLocation] = useState(null); // Changed to object
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -46,43 +45,11 @@ const TripRequestScreen = ({ navigation }) => {
   const slideUpAnim = useRef(new Animated.Value(30)).current;
   const modalSlideAnim = useRef(new Animated.Value(height)).current;
   const searchTimeout = useRef(null);
+  const searchSequence = useRef(0);
 
-  // Vehicle options
-  const vehicleOptions = [
-    {
-      id: 'hatchback',
-      name: 'Hatchback',
-      icon: '🚗',
-      capacity: '4 seats',
-      pricePerKm: 12,
-      features: ['AC', 'Music System'],
-    },
-    {
-      id: 'sedan',
-      name: 'Sedan',
-      icon: '🚙',
-      capacity: '4 seats',
-      pricePerKm: 15,
-      features: ['AC', 'Music System', 'Premium Interior'],
-      popular: true,
-    },
-    {
-      id: 'suv',
-      name: 'SUV',
-      icon: '🚐',
-      capacity: '7 seats',
-      pricePerKm: 20,
-      features: ['AC', 'Music System', 'Spacious', 'Luggage Space'],
-    },
-    {
-      id: 'luxury',
-      name: 'Luxury',
-      icon: '🏎️',
-      capacity: '4 seats',
-      pricePerKm: 35,
-      features: ['Premium AC', 'Leather Seats', 'Wi-Fi', 'Chauffeur'],
-    },
-  ];
+  // Vehicle options state
+  const [vehicleOptions, setVehicleOptions] = useState([]);
+  const [isLoadingVehicles, setIsLoadingVehicles] = useState(true);
 
   // Popular locations (Static fallback)
   const popularLocations = [
@@ -94,13 +61,74 @@ const TripRequestScreen = ({ navigation }) => {
   // Time slots for scheduled rides
   const timeSlots = [
     'Now', '30 min', '1 hour', '2 hours',
-    '09:00 AM', '10:00 AM', '11:00 AM', '12:00 PM',
-    '01:00 PM', '02:00 PM', '03:00 PM', '04:00 PM', '05:00 PM'
+    '06:00 AM', '07:00 AM', '08:00 AM', '09:00 AM', '10:00 AM', '11:00 AM', '12:00 PM',
+    '01:00 PM', '02:00 PM', '03:00 PM', '04:00 PM', '05:00 PM', '06:00 PM',
+    '07:00 PM', '08:00 PM', '09:00 PM', '10:00 PM', '11:00 PM'
   ];
 
   useEffect(() => {
     startAnimations();
+    fetchVehiclesAndPricing();
   }, []);
+
+  // Listen for mapped location returning from LocationPickerScreen
+  useEffect(() => {
+    if (route.params?.mapSelectedLocation) {
+      const loc = route.params.mapSelectedLocation;
+      if (loc.type === 'pickup') {
+        setPickupLocation(loc);
+      } else if (loc.type === 'dropoff') {
+        setDropoffLocation(loc);
+      }
+      // Clear the param to avoid re-triggering
+      navigation.setParams({ mapSelectedLocation: null });
+    }
+  }, [route.params?.mapSelectedLocation]);
+
+  const fetchVehiclesAndPricing = async () => {
+    try {
+      setIsLoadingVehicles(true);
+
+      const [vehiclesRes, pricingRes] = await Promise.all([
+        get(endpoints.vehicles.list).catch(() => null),
+        get(endpoints.config.pricing).catch(() => null)
+      ]);
+
+      const userVehicles = vehiclesRes?.vehicles || [];
+      const genericPricing = pricingRes?.vehicles || [];
+
+      if (userVehicles.length === 0) {
+        setVehicleOptions([]);
+        return;
+      }
+
+      const mergedOptions = userVehicles.map(v => {
+        const vType = v.type ? v.type.toLowerCase() : 'sedan';
+        const pricingInfo = genericPricing.find(p => p.id === vType) || genericPricing[0] || {};
+
+        return {
+          id: v._id,
+          name: `${v.make} ${v.model}`,
+          subText: v.plateNumber || 'No Plate Info',
+          icon: pricingInfo.icon || '🚗',
+          pricePerKm: pricingInfo.pricePerKm || 15, // fallback 15/km
+          capacity: pricingInfo.capacity || '4 seats',
+          features: pricingInfo.features || [],
+          popular: false
+        };
+      });
+
+      setVehicleOptions(mergedOptions);
+      if (mergedOptions.length > 0) {
+        setSelectedVehicle(mergedOptions[0].id);
+      }
+    } catch (error) {
+      console.log('Failed to fetch vehicles or pricing config', error);
+      setVehicleOptions([]);
+    } finally {
+      setIsLoadingVehicles(false);
+    }
+  };
 
   useEffect(() => {
     calculateEstimatedPrice();
@@ -123,7 +151,7 @@ const TripRequestScreen = ({ navigation }) => {
   };
 
   const calculateEstimatedPrice = () => {
-    if (!pickupLocation || !dropoffLocation) {
+    if (!pickupLocation || !dropoffLocation || vehicleOptions.length === 0) {
       setEstimatedPrice(0);
       return;
     }
@@ -140,6 +168,8 @@ const TripRequestScreen = ({ navigation }) => {
     const chargeableDistance = Math.max(distance, 2);
 
     const vehicle = vehicleOptions.find(v => v.id === selectedVehicle);
+    if (!vehicle) return;
+
     const basePrice = chargeableDistance * vehicle.pricePerKm;
     const multiplier = tripType === 'roundtrip' ? 1.8 : 1;
 
@@ -183,21 +213,29 @@ const TripRequestScreen = ({ navigation }) => {
     }
 
     setIsSearching(true);
+    const seq = ++searchSequence.current;
+
     searchTimeout.current = setTimeout(async () => {
       try {
         // Use Pickup Location as bias if available, otherwise undefined
         const bias = pickupLocation ? { lat: pickupLocation.latitude, lng: pickupLocation.longitude } : null;
         const results = await searchLocations(text, bias);
-        setSearchResults(results);
+
+        // Only update state if this is the most recent search request (fixes race condition)
+        if (seq === searchSequence.current) {
+          setSearchResults(results);
+          setIsSearching(false);
+        }
       } catch (error) {
-        console.error("Search failed", error);
-      } finally {
-        setIsSearching(false);
+        if (seq === searchSequence.current) {
+          console.error("Search failed", error);
+          setIsSearching(false);
+        }
       }
     }, 500); // 500ms debounce
   };
 
-  const selectLocation = (location) => {
+  const selectLocation = (location, typeOverride = null) => {
     const locationData = {
       name: location.name,
       address: location.address,
@@ -205,7 +243,9 @@ const TripRequestScreen = ({ navigation }) => {
       longitude: location.longitude
     };
 
-    if (locationInputType === 'pickup') {
+    const targetType = typeOverride || locationInputType;
+
+    if (targetType === 'pickup') {
       setPickupLocation(locationData);
     } else {
       setDropoffLocation(locationData);
@@ -219,7 +259,7 @@ const TripRequestScreen = ({ navigation }) => {
     setDropoffLocation(temp);
   };
 
-  const getCurrentLocation = async () => {
+  const getCurrentLocation = async (currentTargetType) => {
     try {
       setIsSearching(true);
 
@@ -261,7 +301,7 @@ const TripRequestScreen = ({ navigation }) => {
           longitude
         };
 
-        selectLocation(locationData);
+        selectLocation(locationData, currentTargetType);
       } else {
         // Fallback if reverse geocoding returns empty
         const locationData = {
@@ -270,7 +310,7 @@ const TripRequestScreen = ({ navigation }) => {
           latitude,
           longitude
         };
-        selectLocation(locationData);
+        selectLocation(locationData, currentTargetType);
       }
     } catch (error) {
       console.log("Error getting location", error);
@@ -280,14 +320,57 @@ const TripRequestScreen = ({ navigation }) => {
     }
   };
 
+  const getParsedStartTime = () => {
+    const start = new Date(selectedDate);
+    const now = new Date();
+
+    if (selectedTime === 'Now') {
+      return now;
+    } else if (selectedTime === '30 min') {
+      now.setMinutes(now.getMinutes() + 30);
+      return now;
+    } else if (selectedTime === '1 hour') {
+      now.setHours(now.getHours() + 1);
+      return now;
+    } else if (selectedTime === '2 hours') {
+      now.setHours(now.getHours() + 2);
+      return now;
+    } else if (selectedTime) {
+      const match = selectedTime.match(/(\d+):(\d+)\s(AM|PM)/);
+      if (match) {
+        let hours = parseInt(match[1]);
+        const mins = parseInt(match[2]);
+        const ampm = match[3];
+        if (ampm === 'PM' && hours < 12) hours += 12;
+        if (ampm === 'AM' && hours === 12) hours = 0;
+        start.setHours(hours, mins, 0, 0);
+      }
+      return start;
+    }
+    return null;
+  };
+
+  const isFormComplete = pickupLocation && dropoffLocation && selectedTime && estimatedPrice > 0;
+
   const handleFindDriver = async () => {
-    if (!pickupLocation || !dropoffLocation) {
-      Alert.alert('Missing Information', 'Please select both pickup and drop-off locations.');
+    if (!isFormComplete) {
+      Alert.alert('Missing Information', 'Please complete all required fields to proceed.');
       return;
     }
 
-    if (!selectedTime) {
-      Alert.alert('Missing Information', 'Please select a time for your trip.');
+    if (pickupLocation.latitude === dropoffLocation.latitude && pickupLocation.longitude === dropoffLocation.longitude) {
+      Alert.alert('Invalid Route', 'Pickup and Drop-off locations cannot be exactly the same.');
+      return;
+    }
+
+    const calculatedStartTime = getParsedStartTime();
+    const now = new Date();
+
+    // Add a 5 minute buffer so users booking specifically for "right now" aren't blocked by minor delays
+    now.setMinutes(now.getMinutes() - 5);
+
+    if (calculatedStartTime && calculatedStartTime < now) {
+      Alert.alert('Invalid Time', 'You cannot schedule a pickup time in the past.');
       return;
     }
 
@@ -307,8 +390,9 @@ const TripRequestScreen = ({ navigation }) => {
           lat: dropoffLocation.latitude,
           lng: dropoffLocation.longitude
         },
-        date: selectedDate.toISOString(),
-        time: selectedTime,
+        date: selectedDate.toISOString(), // Keep for legacy backend compatibility
+        time: selectedTime, // Keep for legacy backend compatibility
+        startTime: calculatedStartTime?.toISOString() || new Date().toISOString(), // Standard explicit start time
         vehicleType: selectedVehicle,
         tripType,
         passengers: passengerCount,
@@ -357,6 +441,39 @@ const TripRequestScreen = ({ navigation }) => {
     }
     return days;
   };
+
+  const getValidTimeSlots = () => {
+    const today = new Date();
+    const isToday = selectedDate.toDateString() === today.toDateString();
+
+    if (!isToday) return timeSlots;
+
+    return timeSlots.filter(time => {
+      if (['Now', '30 min', '1 hour', '2 hours'].includes(time)) return true;
+
+      const match = time.match(/(\d+):(\d+)\s(AM|PM)/);
+      if (match) {
+        let hours = parseInt(match[1]);
+        const ampm = match[3];
+        if (ampm === 'PM' && hours < 12) hours += 12;
+        if (ampm === 'AM' && hours === 12) hours = 0;
+
+        // Use a 30-minute buffer for absolute time slots
+        const slotTime = new Date();
+        slotTime.setHours(hours, parseInt(match[2]), 0, 0);
+        return slotTime > today;
+      }
+      return true;
+    });
+  };
+
+  // Ensure selectedTime is valid when date changes
+  useEffect(() => {
+    const validSlots = getValidTimeSlots();
+    if (selectedTime && !validSlots.includes(selectedTime)) {
+      setSelectedTime('');
+    }
+  }, [selectedDate]);
 
   return (
     <View className="flex-1 bg-gray-50">
@@ -532,59 +649,75 @@ const TripRequestScreen = ({ navigation }) => {
             Choose Vehicle
           </Text>
 
-          <View className="space-y-3">
-            {vehicleOptions.map((vehicle) => (
-              <TouchableOpacity
-                key={vehicle.id}
-                onPress={() => setSelectedVehicle(vehicle.id)}
-                className={`bg-white rounded-2xl p-4 border-2 ${selectedVehicle === vehicle.id
-                  ? 'border-accent bg-accent/5'
-                  : 'border-gray-200'
-                  } shadow-sm shadow-black/5 relative`}
-                activeOpacity={0.8}
-              >
-                {vehicle.popular && (
-                  <View className="absolute -top-2 left-4 bg-accent px-3 py-1 rounded-full">
-                    <Text className="text-white text-xs font-semibold">
-                      Popular
-                    </Text>
-                  </View>
-                )}
+          {isLoadingVehicles ? (
+            <View className="bg-white rounded-2xl p-6 shadow-sm shadow-black/5 items-center justify-center">
+              <View className="w-8 h-8 border-4 border-gray-200 border-t-accent rounded-full animate-spin mb-4" />
+              <Text className="text-secondary text-base">Loading vehicles...</Text>
+            </View>
+          ) : vehicleOptions.length === 0 ? (
+            <View className="bg-white rounded-2xl p-6 shadow-sm shadow-black/5 items-center justify-center">
+              <Ionicons name="car-outline" size={48} color="#9CA3AF" />
+              <Text className="text-primary text-base font-bold mt-4 text-center">No Vehicles Found</Text>
+              <Text className="text-secondary text-sm mt-2 text-center mb-4">You need to register a vehicle to hire a driver.</Text>
+            </View>
+          ) : (
+            <View className="space-y-3">
+              {vehicleOptions.map((vehicle) => (
+                <TouchableOpacity
+                  key={vehicle.id}
+                  onPress={() => setSelectedVehicle(vehicle.id)}
+                  className={`bg-white rounded-2xl p-4 border-2 ${selectedVehicle === vehicle.id
+                    ? 'border-accent bg-accent/5'
+                    : 'border-gray-200'
+                    } shadow-sm shadow-black/5 relative`}
+                  activeOpacity={0.8}
+                >
+                  {vehicle.popular && (
+                    <View className="absolute -top-2 left-4 bg-accent px-3 py-1 rounded-full">
+                      <Text className="text-white text-xs font-semibold">
+                        Popular
+                      </Text>
+                    </View>
+                  )}
 
-                <View className="flex-row items-center justify-between">
-                  <View className="flex-row items-center flex-1">
-                    <Text className="text-3xl mr-4">{vehicle.icon}</Text>
-                    <View className="flex-1">
-                      <Text className="text-primary text-lg font-bold mb-1">
-                        {vehicle.name}
-                      </Text>
-                      <Text className="text-secondary text-sm mb-2">
-                        {vehicle.capacity} • ₹{vehicle.pricePerKm}/km
-                      </Text>
-                      <View className="flex-row flex-wrap">
-                        {vehicle.features.map((feature, index) => (
-                          <View key={index} className="bg-gray-100 px-2 py-1 rounded-full mr-2 mb-1">
-                            <Text className="text-secondary text-xs">
-                              {feature}
-                            </Text>
-                          </View>
-                        ))}
+                  <View className="flex-row items-center justify-between">
+                    <View className="flex-row items-center flex-1">
+                      <Text className="text-3xl mr-4">{vehicle.icon}</Text>
+                      <View className="flex-1">
+                        <Text className="text-primary text-lg font-bold">
+                          {vehicle.name}
+                        </Text>
+                        <Text className="text-secondary text-xs uppercase font-semibold tracking-wider mb-1">
+                          {vehicle.subText}
+                        </Text>
+                        <Text className="text-secondary text-sm mb-2">
+                          {vehicle.capacity} • ₹{vehicle.pricePerKm}/km
+                        </Text>
+                        <View className="flex-row flex-wrap">
+                          {vehicle.features.map((feature, index) => (
+                            <View key={index} className="bg-gray-100 px-2 py-1 rounded-full mr-2 mb-1">
+                              <Text className="text-secondary text-xs">
+                                {feature}
+                              </Text>
+                            </View>
+                          ))}
+                        </View>
                       </View>
                     </View>
-                  </View>
 
-                  <View className={`w-6 h-6 rounded-full border-2 ${selectedVehicle === vehicle.id
-                    ? 'border-accent bg-accent'
-                    : 'border-gray-300'
-                    } justify-center items-center`}>
-                    {selectedVehicle === vehicle.id && (
-                      <Ionicons name="checkmark" size={12} color="#ffffff" />
-                    )}
+                    <View className={`w-6 h-6 rounded-full border-2 ${selectedVehicle === vehicle.id
+                      ? 'border-accent bg-accent'
+                      : 'border-gray-300'
+                      } justify-center items-center`}>
+                      {selectedVehicle === vehicle.id && (
+                        <Ionicons name="checkmark" size={12} color="#ffffff" />
+                      )}
+                    </View>
                   </View>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
         </Animated.View>
 
         {/* Date Selection */}
@@ -636,7 +769,7 @@ const TripRequestScreen = ({ navigation }) => {
           </Text>
 
           <View className="flex-row flex-wrap gap-3">
-            {timeSlots.map((time) => (
+            {getValidTimeSlots().map((time) => (
               <TouchableOpacity
                 key={time}
                 onPress={() => setSelectedTime(time)}
@@ -757,12 +890,12 @@ const TripRequestScreen = ({ navigation }) => {
 
           <TouchableOpacity
             onPress={handleFindDriver}
-            disabled={searchingDrivers}
+            disabled={searchingDrivers || !isFormComplete}
             activeOpacity={0.8}
             className="rounded-2xl overflow-hidden"
           >
             <LinearGradient
-              colors={searchingDrivers ? ['#cccccc', '#999999'] : ['#00C851', '#00A843']}
+              colors={searchingDrivers || !isFormComplete ? ['#e5e7eb', '#d1d5db'] : ['#00C851', '#00A843']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               style={{
@@ -774,17 +907,17 @@ const TripRequestScreen = ({ navigation }) => {
               <View className="flex-row items-center">
                 {searchingDrivers ? (
                   <>
-                    <View className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                    <Text className="text-white text-lg font-semibold">
+                    <View className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin mr-2" />
+                    <Text className="text-gray-500 text-lg font-semibold">
                       Finding...
                     </Text>
                   </>
                 ) : (
                   <>
-                    <Text className="text-white text-lg font-semibold mr-2">
+                    <Text className={`text-lg font-semibold mr-2 ${!isFormComplete ? 'text-gray-400' : 'text-white'}`}>
                       Find Driver
                     </Text>
-                    <Ionicons name="search" size={20} color="#ffffff" />
+                    <Ionicons name="search" size={20} color={!isFormComplete ? '#9ca3af' : '#ffffff'} />
                   </>
                 )}
               </View>
@@ -828,17 +961,43 @@ const TripRequestScreen = ({ navigation }) => {
               {isSearching && <View className="w-4 h-4 border-2 border-accent border-t-transparent rounded-full animate-spin" />}
             </View>
 
-            {/* Current Location Button */}
+            {/* Current Location Button - Only show for Pickup */}
+            {locationInputType === 'pickup' && (
+              <TouchableOpacity
+                onPress={() => getCurrentLocation(locationInputType)}
+                className="flex-row items-center p-4 bg-blue-50 rounded-xl mb-4 border border-blue-100"
+              >
+                <View className="w-10 h-10 bg-blue-100 rounded-full justify-center items-center mr-3">
+                  <Ionicons name="navigate" size={20} color="#3B82F6" />
+                </View>
+                <View>
+                  <Text className="text-blue-600 font-bold text-base">Use Current Location</Text>
+                  <Text className="text-blue-400 text-xs">Tap to set precise location</Text>
+                </View>
+              </TouchableOpacity>
+            )}
+
+            {/* Choose on Map Button */}
             <TouchableOpacity
-              onPress={getCurrentLocation}
-              className="flex-row items-center p-4 bg-blue-50 rounded-xl mb-4 border border-blue-100"
+              onPress={() => {
+                closeLocationModal();
+                navigation.navigate('LocationPicker', {
+                  type: locationInputType,
+                  initialLocation: locationInputType === 'pickup'
+                    ? pickupLocation
+                    : dropoffLocation,
+                  returnRoute: route.name,
+                  onLocationSelect: (loc) => selectLocation(loc, loc.type)
+                });
+              }}
+              className="flex-row items-center p-4 bg-gray-50 rounded-xl mb-4 border border-gray-200"
             >
-              <View className="w-10 h-10 bg-blue-100 rounded-full justify-center items-center mr-3">
-                <Ionicons name="navigate" size={20} color="#3B82F6" />
+              <View className="w-10 h-10 bg-gray-200 rounded-full justify-center items-center mr-3">
+                <Ionicons name="map" size={20} color="#6C757D" />
               </View>
               <View>
-                <Text className="text-blue-600 font-bold text-base">Use Current Location</Text>
-                <Text className="text-blue-400 text-xs">Tap to set precise location</Text>
+                <Text className="text-primary font-bold text-base">Choose on map</Text>
+                <Text className="text-secondary text-xs">Pinpoint exact location on map</Text>
               </View>
             </TouchableOpacity>
 
@@ -852,7 +1011,7 @@ const TripRequestScreen = ({ navigation }) => {
                   {searchResults.map((location) => (
                     <TouchableOpacity
                       key={location.id}
-                      onPress={() => selectLocation(location)}
+                      onPress={() => selectLocation(location, locationInputType)}
                       className="flex-row items-center p-4 border-b border-gray-100"
                       activeOpacity={0.7}
                     >
@@ -887,7 +1046,7 @@ const TripRequestScreen = ({ navigation }) => {
                   {popularLocations.map((location) => (
                     <TouchableOpacity
                       key={location.id}
-                      onPress={() => selectLocation(location)}
+                      onPress={() => selectLocation(location, locationInputType)}
                       className="flex-row items-center p-4 border-b border-gray-100"
                       activeOpacity={0.7}
                     >

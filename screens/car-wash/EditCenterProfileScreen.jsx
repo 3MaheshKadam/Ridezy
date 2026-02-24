@@ -18,16 +18,15 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
 import * as ImagePicker from 'expo-image-picker';
-import { get, patch } from '../../lib/api';
+import { get, patch, post } from '../../lib/api';
 import { reverseGeocode } from '../../lib/locationService';
-import { endpoints } from '../../config/apiConfig';
-import '../../global.css';
-
+import { endpoints, BASE_URL } from '../../config/apiConfig';
 const { width, height } = Dimensions.get('window');
 
 const EditCenterProfileScreen = ({ navigation }) => {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [uploadingLogo, setUploadingLogo] = useState(false);
 
     // Profile State
     const [formData, setFormData] = useState({
@@ -151,30 +150,46 @@ const EditCenterProfileScreen = ({ navigation }) => {
     }
 
     const pickImage = async () => {
-        // No permissions request is necessary for launching the image library
         let result = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ImagePicker.MediaTypeOptions.Images,
             allowsEditing: true,
             aspect: [1, 1],
-            quality: 0.5,
-            base64: true, // Optional: if backend expects base64, otherwise use uri for upload
+            quality: 0.7,
         });
 
-        console.log(result);
+        if (!result.canceled && result.assets[0]) {
+            const asset = result.assets[0];
+            setUploadingLogo(true);
+            try {
+                // Build FormData to upload the image to /api/upload
+                const formPayload = new FormData();
+                formPayload.append('file', {
+                    uri: asset.uri,
+                    name: 'logo.jpg',
+                    type: 'image/jpeg',
+                });
 
-        if (!result.canceled) {
-            // IF backend supports Base64 direct save:
-            // const base64Img = `data:image/jpeg;base64,${result.assets[0].base64}`;
-            // setFormData(prev => ({ ...prev, logo: base64Img }));
+                const response = await fetch(`${BASE_URL}/api${endpoints.common.upload}`, {
+                    method: 'POST',
+                    body: formPayload,
+                    // Do NOT set Content-Type manually — React Native sets it with the multipart boundary
+                });
 
-            // For now, using URI - Backend might need to upload this first.
-            // Since we don't have a rigid file upload flow yet, we'll try setting the URI 
-            // (Note: Local URIs won't persist across devices unless uploaded)
-            // Ideally: Upload to /api/upload -> get URL -> setFormData(url)
-
-            // Assuming for now User can also just paste URL. 
-            // We will set the URI for preview.
-            setFormData(prev => ({ ...prev, logo: result.assets[0].uri }));
+                const uploadResult = await response.json();
+                if (uploadResult?.url) {
+                    setFormData(prev => ({ ...prev, logo: uploadResult.url }));
+                } else {
+                    // Fallback: use local URI for preview if upload fails
+                    setFormData(prev => ({ ...prev, logo: asset.uri }));
+                    Alert.alert('Notice', 'Logo saved locally. It may not persist across devices.');
+                }
+            } catch (err) {
+                console.error('Logo upload failed:', err);
+                setFormData(prev => ({ ...prev, logo: asset.uri }));
+                Alert.alert('Notice', 'Logo upload failed. Using local preview.');
+            } finally {
+                setUploadingLogo(false);
+            }
         }
     };
 
@@ -202,7 +217,7 @@ const EditCenterProfileScreen = ({ navigation }) => {
 
                     {/* Logo Section */}
                     <View className="items-center mb-8">
-                        <TouchableOpacity onPress={pickImage} activeOpacity={0.8}>
+                        <TouchableOpacity onPress={pickImage} activeOpacity={0.8} disabled={uploadingLogo}>
                             <View className="w-24 h-24 bg-gray-200 rounded-full justify-center items-center mb-3 overflow-hidden border-4 border-white shadow-sm relative">
                                 {formData.logo ? (
                                     <Image
@@ -215,7 +230,9 @@ const EditCenterProfileScreen = ({ navigation }) => {
                                 )}
 
                                 <View className="absolute bottom-0 bg-black/30 w-full h-8 justify-center items-center">
-                                    <Ionicons name="camera" size={12} color="white" />
+                                    {uploadingLogo
+                                        ? <ActivityIndicator size="small" color="white" />
+                                        : <Ionicons name="camera" size={12} color="white" />}
                                 </View>
                             </View>
                         </TouchableOpacity>

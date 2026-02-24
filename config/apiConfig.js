@@ -1,4 +1,4 @@
-export const BASE_URL = 'http://192.168.1.13:3000';
+export const BASE_URL = 'http://192.168.1.21:3000';
 export const API_BASE_URL = `${BASE_URL}/api`;
 
 export const endpoints = {
@@ -7,6 +7,13 @@ export const endpoints = {
         register: '/auth/register',
         me: '/auth/me',
         profile: '/auth/profile',
+    },
+    user: {
+        stats: '/user/stats',
+        activity: '/user/activity',
+    },
+    config: {
+        pricing: '/config/pricing',
     },
     common: {
         upload: '/upload',

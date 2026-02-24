@@ -14,7 +14,6 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
-import '../../global.css';
 import { useUser } from '../../context/UserContext';
 import { useNotifications } from '../../context/NotificationContext';
 import { get, patch } from '../../lib/api';
@@ -144,7 +143,7 @@ const CenterDashboardScreen = ({ navigation }) => {
     setRefreshing(false);
   };
 
-  const toggleCenterStatus = () => {
+  const toggleCenterStatus = async () => {
     const statusCycle = { open: 'busy', busy: 'closed', closed: 'open' };
     const nextStatus = statusCycle[centerStatus];
     setCenterStatus(nextStatus);
@@ -154,6 +153,13 @@ const CenterDashboardScreen = ({ navigation }) => {
       busy: 'Center marked as busy - limited bookings',
       closed: 'Center is now closed',
     };
+
+    // Persist status to backend
+    try {
+      await patch(endpoints.centers.profile, { status: nextStatus });
+    } catch (error) {
+      console.error('Failed to update center status:', error);
+    }
 
     Alert.alert('Status Updated', statusMessages[nextStatus]);
   };
@@ -299,9 +305,11 @@ const CenterDashboardScreen = ({ navigation }) => {
                 activeOpacity={0.7}
               >
                 <Ionicons name="notifications-outline" size={20} color="#1A1B23" />
-                <View className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full justify-center items-center">
-                  <Text className="text-white text-xs font-bold">5</Text>
-                </View>
+                {unreadCount > 0 && (
+                  <View className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full justify-center items-center">
+                    <Text className="text-white text-xs font-bold">{unreadCount > 9 ? '9+' : unreadCount}</Text>
+                  </View>
+                )}
               </TouchableOpacity>
             </View>
 
@@ -534,7 +542,7 @@ const CenterDashboardScreen = ({ navigation }) => {
             <Text className="text-primary text-lg font-bold">
               Recent Activities
             </Text>
-            <TouchableOpacity activeOpacity={0.7}>
+            <TouchableOpacity onPress={() => navigation.navigate('Bookings')} activeOpacity={0.7}>
               <Text className="text-accent text-sm font-semibold">
                 View All
               </Text>

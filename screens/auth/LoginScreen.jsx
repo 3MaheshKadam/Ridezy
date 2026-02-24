@@ -14,7 +14,6 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import '../../global.css';
 import { post } from '../../lib/api';
 import { endpoints } from '../../config/apiConfig';
 import { useUser } from '../../context/UserContext';

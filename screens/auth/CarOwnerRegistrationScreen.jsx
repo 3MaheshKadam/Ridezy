@@ -14,8 +14,6 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
-import '../../global.css';
-
 import { post } from '../../lib/api';
 import { endpoints } from '../../config/apiConfig';
 import { useUser } from '../../context/UserContext';

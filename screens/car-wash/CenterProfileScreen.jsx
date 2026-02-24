@@ -12,10 +12,10 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
-import '../../global.css';
 import { useUser } from '../../context/UserContext';
-import { get } from '../../lib/api';
-import { endpoints } from '../../config/apiConfig';
+import { get, patch } from '../../lib/api';
+import { endpoints, BASE_URL } from '../../config/apiConfig';
+import { useFocusEffect } from '@react-navigation/native';
 
 const CenterProfileScreen = ({ navigation }) => {
     const { user, logout } = useUser();
@@ -30,14 +30,20 @@ const CenterProfileScreen = ({ navigation }) => {
 
     const [notificationsEnabled, setNotificationsEnabled] = useState(true);
     const [isOnline, setIsOnline] = useState(true);
+    const [isTogglingStatus, setIsTogglingStatus] = useState(false);
 
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const slideUpAnim = useRef(new Animated.Value(30)).current;
 
     useEffect(() => {
         startAnimations();
-        fetchProfileData();
     }, []);
+
+    useFocusEffect(
+        React.useCallback(() => {
+            fetchProfileData();
+        }, [])
+    );
 
     const fetchProfileData = async () => {
         try {
@@ -156,7 +162,11 @@ const CenterProfileScreen = ({ navigation }) => {
                     <View className="mb-4 relative">
                         <View className="w-24 h-24 bg-gray-100 rounded-full justify-center items-center overflow-hidden border-4 border-white shadow-sm">
                             {centerProfile.logo ? (
-                                <Image source={{ uri: centerProfile.logo }} className="w-full h-full" />
+                                <Image
+                                    source={{ uri: centerProfile.logo.startsWith('/') ? `${BASE_URL}${centerProfile.logo}` : centerProfile.logo }}
+                                    style={{ width: 96, height: 96, borderRadius: 48 }}
+                                    resizeMode="cover"
+                                />
                             ) : (
                                 <Ionicons name="business" size={40} color="#9CA3AF" />
                             )}
@@ -199,7 +209,15 @@ const CenterProfileScreen = ({ navigation }) => {
                             </View>
                             <Switch
                                 value={isOnline}
-                                onValueChange={setIsOnline}
+                                onValueChange={async (val) => {
+                                    setIsOnline(val);
+                                    try {
+                                        await patch(endpoints.centers.profile, { status: val ? 'open' : 'closed' });
+                                    } catch (err) {
+                                        console.error('Failed to update center status:', err);
+                                        setIsOnline(!val); // revert on failure
+                                    }
+                                }}
                                 trackColor={{ false: '#E5E7EB', true: '#A7F3D0' }}
                                 thumbColor={isOnline ? '#00C851' : '#F4F4F5'}
                             />

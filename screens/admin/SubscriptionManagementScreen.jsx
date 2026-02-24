@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -6,28 +6,47 @@ import {
   ScrollView,
   Animated,
   Dimensions,
-
   StatusBar,
   Alert,
   Modal,
   TextInput,
   Switch,
+  ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
-import '../../global.css';
 import { get, post, put, del } from '../../lib/api';
 import { endpoints } from '../../config/apiConfig';
 
 const { width, height } = Dimensions.get('window');
 
-const SubscriptionManagementScreen = ({ navigation }) => {
-  const [activeTab, setActiveTab] = useState('owner'); // owner, driver, carwash
-  const [showAddPlanModal, setShowAddPlanModal] = useState(false);
-  const [showEditPlanModal, setShowEditPlanModal] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState(null);
+// Premium Glassmorphic Card
+const GlassCard = ({ children, className = "", style = {} }) => (
+  <View
+    className={`bg-white/95 border border-slate-100 rounded-[32px] overflow-hidden ${className}`}
+    style={{
+      ...Platform.select({
+        ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.05, shadowRadius: 15 },
+        android: { elevation: 10 }
+      }),
+      ...style
+    }}
+  >
+    {children}
+  </View>
+);
 
-  // New Plan Form State
+const SubscriptionManagementScreen = ({ navigation }) => {
+  // --- State Management ---
+  const [activeTab, setActiveTab] = useState('owner'); // owner, driver, carwash
+  const [isLoading, setIsLoading] = useState(true);
+  const [plans, setPlans] = useState([]);
+  const [selectedPlan, setSelectedPlan] = useState(null);
+  const [planModalVisible, setPlanModalVisible] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
+
+  // --- Form State ---
   const [planName, setPlanName] = useState('');
   const [planPrice, setPlanPrice] = useState('');
   const [planDuration, setPlanDuration] = useState('monthly');
@@ -35,112 +54,124 @@ const SubscriptionManagementScreen = ({ navigation }) => {
   const [planFeatures, setPlanFeatures] = useState(['']);
   const [isActive, setIsActive] = useState(true);
 
+  // --- Animations ---
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideUpAnim = useRef(new Animated.Value(30)).current;
-  const modalSlideAnim = useRef(new Animated.Value(height)).current;
-
-  // Plans State
-  const [plans, setPlans] = useState([]);
-  const [isLoading, setIsLoading] = useState(false);
-
-  // Derived state for tabs
-  const ownerPlans = plans.filter(p => p.role === 'OWNER' || !p.role || p.role === 'owner'); // Backwards compat or new field
-  const driverPlans = plans.filter(p => p.role === 'DRIVER');
-  const carwashPlans = plans.filter(p => p.role === 'CENTER');
 
   useEffect(() => {
-    startAnimations();
+    animateScreen();
     fetchPlans();
   }, []);
 
+  const animateScreen = () => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
+      Animated.spring(slideUpAnim, { toValue: 0, tension: 50, friction: 8, useNativeDriver: true })
+    ]).start();
+  };
+
+  // --- Data Actions ---
   const fetchPlans = async () => {
     setIsLoading(true);
     try {
-      const fetchedPlans = await get(endpoints.admin.plans);
-      if (fetchedPlans) {
-        // Backend returns simple plan objects. Map them to UI model if needed, 
-        // but let's assume direct usage. Add color/revenue defaults if missing.
-        const plansWithDefaults = fetchedPlans.map(p => ({
+      const response = await get(endpoints.admin.plans);
+      if (response) {
+        const plansWithDefaults = response.map(p => ({
           ...p,
           id: p._id,
-          color: p.color || '#3B82F6',
+          color: p.color || (p.role === 'DRIVER' ? '#8B5CF6' : p.role === 'CENTER' ? '#3B82F6' : '#4F46E5'),
           revenue: p.revenue || 0,
           subscribers: p.subscribers || 0,
         }));
         setPlans(plansWithDefaults);
       }
     } catch (error) {
-      console.error("Failed to fetch plans", error);
+      console.error("Fetch plans error:", error);
       Alert.alert("Error", "Could not load subscription plans");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const startAnimations = () => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 800,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideUpAnim, {
-        toValue: 0,
-        duration: 600,
-        delay: 200,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  };
+  const handleSavePlan = async () => {
+    if (!planName || !planPrice || !planDescription) {
+      Alert.alert('Missing Information', 'Please fill in all required fields.');
+      return;
+    }
 
-  const openAddPlanModal = () => {
-    resetForm();
-    setShowAddPlanModal(true);
-    Animated.timing(modalSlideAnim, {
-      toValue: 0,
-      duration: 300,
-      useNativeDriver: true,
-    }).start();
-  };
+    const filteredFeatures = planFeatures.filter(f => f.trim() !== '');
+    if (filteredFeatures.length === 0) {
+      Alert.alert('Missing Features', 'Please add at least one feature.');
+      return;
+    }
 
-  const closeAddPlanModal = () => {
-    Animated.timing(modalSlideAnim, {
-      toValue: height,
-      duration: 300,
-      useNativeDriver: true,
-    }).start(() => {
-      setShowAddPlanModal(false);
+    const role = activeTab === 'driver' ? 'DRIVER' : activeTab === 'carwash' ? 'CENTER' : 'OWNER';
+    const payload = {
+      name: planName,
+      price: parseFloat(planPrice),
+      duration: planDuration,
+      description: planDescription,
+      features: filteredFeatures,
+      isActive: isActive,
+      role: role,
+    };
+
+    try {
+      if (isEditMode && selectedPlan) {
+        payload._id = selectedPlan.id;
+        await put(endpoints.admin.plans, payload);
+        Alert.alert('Success', 'Plan updated successfully!');
+      } else {
+        payload.color = '#4F46E5';
+        await post(endpoints.admin.plans, payload);
+        Alert.alert('Success', 'Subscription plan created successfully!');
+      }
+      setPlanModalVisible(false);
+      fetchPlans();
       resetForm();
-    });
+    } catch (error) {
+      Alert.alert('Error', 'Operation failed. Please try again.');
+    }
   };
 
-  const openEditPlanModal = (plan) => {
-    setSelectedPlan(plan);
-    setPlanName(plan.name);
-    setPlanPrice(plan.price.toString());
-    setPlanDuration(plan.duration);
-    setPlanDescription(plan.description);
-    setPlanFeatures(plan.features);
-    setIsActive(plan.isActive);
-
-    setShowEditPlanModal(true);
-    Animated.timing(modalSlideAnim, {
-      toValue: 0,
-      duration: 300,
-      useNativeDriver: true,
-    }).start();
+  const handleDeletePlan = (plan) => {
+    Alert.alert(
+      'Delete Plan',
+      `Are you sure you want to delete "${plan.name}"?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await del(`${endpoints.admin.plans}?id=${plan.id}`);
+              fetchPlans();
+              Alert.alert('Deleted', 'Plan deleted successfully.');
+            } catch (error) {
+              Alert.alert('Error', 'Failed to delete plan.');
+            }
+          },
+        },
+      ]
+    );
   };
 
-  const closeEditPlanModal = () => {
-    Animated.timing(modalSlideAnim, {
-      toValue: height,
-      duration: 300,
-      useNativeDriver: true,
-    }).start(() => {
-      setShowEditPlanModal(false);
-      setSelectedPlan(null);
+  const openModal = (plan = null) => {
+    if (plan) {
+      setIsEditMode(true);
+      setSelectedPlan(plan);
+      setPlanName(plan.name);
+      setPlanPrice(plan.price.toString());
+      setPlanDuration(plan.duration);
+      setPlanDescription(plan.description);
+      setPlanFeatures(plan.features);
+      setIsActive(plan.isActive);
+    } else {
+      setIsEditMode(false);
       resetForm();
-    });
+    }
+    setPlanModalVisible(true);
   };
 
   const resetForm = () => {
@@ -152,578 +183,235 @@ const SubscriptionManagementScreen = ({ navigation }) => {
     setIsActive(true);
   };
 
-  const addFeature = () => {
-    setPlanFeatures([...planFeatures, '']);
-  };
+  // --- Derived Data ---
+  const filteredPlans = useMemo(() => {
+    const role = activeTab === 'driver' ? 'DRIVER' : activeTab === 'carwash' ? 'CENTER' : 'OWNER';
+    return plans.filter(p => {
+      const pRole = (p.role || '').toUpperCase();
+      if (role === 'OWNER') return pRole === 'OWNER' || pRole === '';
+      return pRole === role;
+    });
+  }, [activeTab, plans]);
 
-  const updateFeature = (index, value) => {
-    const newFeatures = [...planFeatures];
-    newFeatures[index] = value;
-    setPlanFeatures(newFeatures);
-  };
-
-  const removeFeature = (index) => {
-    if (planFeatures.length > 1) {
-      const newFeatures = planFeatures.filter((_, i) => i !== index);
-      setPlanFeatures(newFeatures);
-    }
-  };
-
-  const handleCreatePlan = async () => {
-    if (!planName || !planPrice || !planDescription) {
-      Alert.alert('Missing Information', 'Please fill in all required fields.');
-      return;
-    }
-
-    const filteredFeatures = planFeatures.filter(f => f.trim() !== '');
-    if (filteredFeatures.length === 0) {
-      Alert.alert('Missing Features', 'Please add at least one feature.');
-      return;
-    }
-
-    // Determine role based on active tab
-    let role = 'OWNER';
-    if (activeTab === 'driver') role = 'DRIVER';
-    if (activeTab === 'carwash') role = 'CENTER';
-
-    try {
-      const payload = {
-        name: planName,
-        price: parseFloat(planPrice),
-        duration: planDuration,
-        description: planDescription,
-        features: filteredFeatures,
-        isActive: isActive,
-        role: role, // Backend needs to know which type of plan this is
-        color: '#10B981', // Default color for new plans
-      };
-
-      await post(endpoints.admin.plans, payload);
-
-      closeAddPlanModal();
-      fetchPlans(); // Refresh list
-      Alert.alert('Success', 'Subscription plan created successfully!');
-    } catch (error) {
-      Alert.alert('Error', 'Failed to create plan. Please try again.');
-      console.error(error);
-    }
-  };
-
-  const handleUpdatePlan = async () => {
-    if (!planName || !planPrice || !planDescription) {
-      Alert.alert('Missing Information', 'Please fill in all required fields.');
-      return;
-    }
-
-    const filteredFeatures = planFeatures.filter(f => f.trim() !== '');
-    if (filteredFeatures.length === 0) {
-      Alert.alert('Missing Features', 'Please add at least one feature.');
-      return;
-    }
-
-    try {
-      const payload = {
-        _id: selectedPlan.id, // Backend checks for _id in body
-        name: planName,
-        price: parseFloat(planPrice),
-        duration: planDuration,
-        description: planDescription,
-        features: filteredFeatures,
-        isActive: isActive,
-        // Role is usually not changeable, but we could send it
-      };
-
-      // We use PUT as per backend implementation
-      await put(endpoints.admin.plans, payload);
-
-      closeEditPlanModal();
-      fetchPlans(); // Refresh
-      Alert.alert('Success', 'Plan updated successfully!');
-    } catch (error) {
-      Alert.alert('Error', 'Failed to update plan. Please try again.');
-      console.error(error);
-    }
-  };
-
-  const handleDeletePlan = (plan) => {
-    Alert.alert(
-      'Delete Plan',
-      `Are you sure you want to delete "${plan.name}"? This action cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              // Delete uses query param id
-              await del(`${endpoints.admin.plans}?id=${plan.id}`);
-              fetchPlans();
-              Alert.alert('Deleted', 'Plan deleted successfully.');
-            } catch (error) {
-              Alert.alert('Error', 'Failed to delete plan.');
-              console.error(error);
-            }
-          },
-        },
-      ]
-    );
-  };
-
+  // --- Components ---
   const renderPlanCard = (plan) => (
-    <View
-      key={plan.id}
-      className="bg-white rounded-2xl p-4 mb-4 shadow-sm shadow-black/5 border-2 border-gray-100"
-    >
-      {plan.popular && (
-        <View className="absolute -top-2 left-4 bg-accent px-3 py-1 rounded-full z-10">
-          <Text className="text-white text-xs font-bold">Popular</Text>
-        </View>
-      )}
-
-      <View className="flex-row items-start justify-between mb-3">
-        <View className="flex-1">
-          <View className="flex-row items-center mb-2">
-            <View
-              className="w-10 h-10 rounded-xl justify-center items-center mr-3"
-              style={{ backgroundColor: `${plan.color}15` }}
-            >
-              <MaterialIcons name="card-membership" size={20} color={plan.color} />
-            </View>
-            <View className="flex-1">
-              <Text className="text-primary text-lg font-bold">{plan.name}</Text>
-              <Text className="text-secondary text-xs">{plan.description}</Text>
-            </View>
+    <GlassCard key={plan.id} className="mb-6 p-6">
+      <View className="flex-row justify-between items-start mb-4">
+        <View className="flex-row items-center">
+          <View className="w-12 h-12 rounded-2xl justify-center items-center mr-4" style={{ backgroundColor: `${plan.color}15` }}>
+            <FontAwesome5 name="gem" size={20} color={plan.color} />
+          </View>
+          <View>
+            <Text className="text-slate-900 text-lg font-black">{String(plan.name)}</Text>
+            <Text className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">{String(plan.duration)} PLAN</Text>
           </View>
         </View>
-        <View
-          className={`px-2 py-1 rounded-full ${plan.isActive ? 'bg-green-50' : 'bg-gray-100'
-            }`}
-        >
-          <Text
-            className={`text-xs font-semibold ${plan.isActive ? 'text-green-600' : 'text-gray-500'
-              }`}
-          >
-            {plan.isActive ? 'Active' : 'Inactive'}
+        <View className={`px-3 py-1 rounded-full ${plan.isActive ? 'bg-emerald-100' : 'bg-slate-100'}`}>
+          <Text className={`text-[10px] font-black uppercase ${plan.isActive ? 'text-emerald-700' : 'text-slate-500'}`}>
+            {plan.isActive ? 'Active' : 'Draft'}
           </Text>
         </View>
       </View>
 
-      {/* Pricing */}
-      <View className="bg-gray-50 rounded-xl p-3 mb-3">
-        <View className="flex-row items-end justify-between">
-          <View>
-            <Text className="text-secondary text-xs mb-1">Price</Text>
-            <View className="flex-row items-end">
-              <Text className="text-primary text-2xl font-bold">₹{plan.price}</Text>
-              <Text className="text-secondary text-sm ml-1 mb-1">/{plan.duration}</Text>
-            </View>
+      <View className="bg-slate-50 rounded-3xl p-5 mb-5 flex-row items-center justify-between">
+        <View>
+          <Text className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1">Pricing</Text>
+          <View className="flex-row items-baseline">
+            <Text className="text-slate-900 text-2xl font-black">₹{plan.price}</Text>
+            <Text className="text-slate-500 text-xs font-bold ml-1">/{plan.duration === 'yearly' ? 'yr' : 'mo'}</Text>
           </View>
-          <View className="items-end">
-            <Text className="text-secondary text-xs mb-1">Subscribers</Text>
-            <Text className="text-primary text-xl font-bold">{plan.subscribers}</Text>
-          </View>
+        </View>
+        <View className="h-8 w-[1px] bg-slate-200" />
+        <View className="items-end">
+          <Text className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1">Users</Text>
+          <Text className="text-slate-900 text-xl font-black">{plan.subscribers}</Text>
         </View>
       </View>
 
-      {/* Features */}
-      <View className="mb-3">
-        <Text className="text-primary text-sm font-semibold mb-2">Features:</Text>
-        {plan.features.slice(0, 3).map((feature, index) => (
-          <View key={index} className="flex-row items-center mb-1">
-            <Ionicons name="checkmark-circle" size={14} color="#00C851" />
-            <Text className="text-secondary text-xs ml-2 flex-1">{feature}</Text>
+      <View className="mb-5">
+        {plan.features.slice(0, 3).map((f, i) => (
+          <View key={i} className="flex-row items-center mb-2">
+            <Ionicons name="checkmark-circle" size={16} color="#10B981" />
+            <Text className="text-slate-600 text-xs font-bold ml-2" numberOfLines={1}>{f}</Text>
           </View>
         ))}
-        {plan.features.length > 3 && (
-          <Text className="text-accent text-xs mt-1">
-            +{plan.features.length - 3} more features
-          </Text>
-        )}
       </View>
 
-      {/* Revenue */}
-      <View className="border-t border-gray-100 pt-3 mb-3">
-        <View className="flex-row items-center justify-between">
-          <Text className="text-secondary text-xs">Monthly Revenue</Text>
-          <Text className="text-accent text-base font-bold">
-            ₹{plan.revenue.toLocaleString('en-IN')}
-          </Text>
+      <View className="flex-row space-x-3">
+        <TouchableOpacity
+          onPress={() => openModal(plan)}
+          className="flex-1 bg-indigo-50 py-3.5 rounded-2xl items-center flex-row justify-center"
+        >
+          <Ionicons name="create-outline" size={18} color="#4F46E5" />
+          <Text className="text-indigo-600 font-black ml-2 text-xs">Edit</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => handleDeletePlan(plan)}
+          className="flex-1 bg-rose-50 py-3.5 rounded-2xl items-center flex-row justify-center"
+        >
+          <Ionicons name="trash-outline" size={18} color="#F43F5E" />
+          <Text className="text-rose-600 font-black ml-2 text-xs">Delete</Text>
+        </TouchableOpacity>
+      </View>
+    </GlassCard>
+  );
+
+  return (
+    <View className="flex-1 bg-white">
+      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+
+      {/* Header */}
+      <View className="px-6 pt-14 pb-4 bg-white">
+        <View className="flex-row items-center justify-between mb-6">
+          <TouchableOpacity onPress={() => navigation.goBack()} className="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-100 justify-center items-center">
+            <Ionicons name="chevron-back" size={24} color="#0F172A" />
+          </TouchableOpacity>
+          <Text className="text-slate-900 text-2xl font-black">Subscription</Text>
+          <TouchableOpacity onPress={() => openModal()} className="w-12 h-12 rounded-2xl bg-indigo-600 justify-center items-center">
+            <Ionicons name="add" size={24} color="white" />
+          </TouchableOpacity>
+        </View>
+
+        {/* Tabs */}
+        <View className="flex-row bg-slate-50 p-1.5 rounded-3xl mb-4">
+          {['owner', 'driver', 'carwash'].map(tab => (
+            <TouchableOpacity
+              key={tab}
+              onPress={() => setActiveTab(tab)}
+              className={`flex-1 py-3 items-center rounded-2xl ${activeTab === tab ? 'bg-white shadow-sm' : ''}`}
+            >
+              <Text className={`text-[10px] font-black uppercase ${activeTab === tab ? 'text-indigo-600' : 'text-slate-400'}`}>
+                {tab === 'carwash' ? 'Car Wash' : `${tab}s`}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </View>
       </View>
 
-      {/* Actions */}
-      <View className="flex-row space-x-3">
-        <TouchableOpacity
-          onPress={() => openEditPlanModal(plan)}
-          className="flex-1 bg-blue-50 rounded-xl py-3 flex-row justify-center items-center"
-          activeOpacity={0.8}
-        >
-          <Ionicons name="create" size={16} color="#3B82F6" />
-          <Text className="text-blue-600 text-sm font-semibold ml-2">Edit</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          onPress={() => handleDeletePlan(plan)}
-          className="flex-1 bg-red-50 rounded-xl py-3 flex-row justify-center items-center"
-          activeOpacity={0.8}
-        >
-          <Ionicons name="trash" size={16} color="#dc2626" />
-          <Text className="text-red-600 text-sm font-semibold ml-2">Delete</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-
-  const getCurrentPlans = () => {
-    switch (activeTab) {
-      case 'owner':
-        return ownerPlans;
-      case 'driver':
-        return driverPlans;
-      case 'carwash':
-        return carwashPlans;
-      default:
-        return [];
-    }
-  };
-
-  const getTabTitle = () => {
-    switch (activeTab) {
-      case 'owner':
-        return 'Car Owner Plans';
-      case 'driver':
-        return 'Driver Plans';
-      case 'carwash':
-        return 'Car Wash Center Plans';
-      default:
-        return '';
-    }
-  };
-
-  const renderPlanFormModal = (isEdit = false) => (
-    <Modal
-      visible={isEdit ? showEditPlanModal : showAddPlanModal}
-      transparent={true}
-      animationType="none"
-      onRequestClose={isEdit ? closeEditPlanModal : closeAddPlanModal}
-    >
-      <View className="flex-1 bg-black/50 justify-end">
-        <Animated.View
-          style={{
-            transform: [{ translateY: modalSlideAnim }],
-          }}
-          className="bg-white rounded-t-3xl p-6 max-h-[90%]"
-        >
-          <ScrollView showsVerticalScrollIndicator={false}>
-            <View className="items-center mb-6">
-              <View className="w-12 h-1 bg-gray-300 rounded-full mb-4" />
-              <Text className="text-primary text-xl font-bold">
-                {isEdit ? 'Edit Plan' : `Create New ${getTabTitle()}`}
-              </Text>
-            </View>
-
-            {/* Plan Name */}
-            <View className="mb-4">
-              <Text className="text-primary text-sm font-semibold mb-2">
-                Plan Name *
-              </Text>
-              <View className="bg-gray-50 rounded-2xl p-4">
-                <TextInput
-                  value={planName}
-                  onChangeText={setPlanName}
-                  placeholder="e.g., Premium Plan"
-                  placeholderTextColor="#6C757D"
-                  className="text-primary text-base"
-                />
+      {isLoading ? (
+        <View className="flex-1 justify-center items-center"><ActivityIndicator size="large" color="#4F46E5" /></View>
+      ) : (
+        <ScrollView contentContainerStyle={{ padding: 24, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+          <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideUpAnim }] }}>
+            {filteredPlans.length === 0 ? (
+              <View className="py-20 items-center">
+                <Ionicons name="card-outline" size={64} color="#E2E8F0" />
+                <Text className="text-slate-400 font-black text-lg mt-4">No Plans Found</Text>
+                <TouchableOpacity onPress={() => openModal()} className="mt-4"><Text className="text-indigo-600 font-bold">Create your first plan</Text></TouchableOpacity>
               </View>
-            </View>
+            ) : (
+              filteredPlans.map(renderPlanCard)
+            )}
+          </Animated.View>
+        </ScrollView>
+      )}
 
-            {/* Price and Duration */}
-            <View className="flex-row space-x-3 mb-4">
-              <View className="flex-1">
-                <Text className="text-primary text-sm font-semibold mb-2">
-                  Price (₹) *
-                </Text>
-                <View className="bg-gray-50 rounded-2xl p-4">
+      {/* Plan Form Modal */}
+      <Modal visible={planModalVisible} transparent animationType="slide">
+        <View className="flex-1 bg-black/60 justify-end">
+          <View className="bg-white rounded-t-[40px] p-8 pb-12 h-[90%]">
+            <View className="w-16 h-1 bg-slate-200 rounded-full self-center mb-8" />
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text className="text-slate-900 text-2xl font-black mb-1">{isEditMode ? 'Edit Plan' : 'New Plan'}</Text>
+              <Text className="text-slate-500 font-bold mb-8">Set up your subscription details below.</Text>
+
+              <View className="space-y-6">
+                <View>
+                  <Text className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2 ml-1">Plan Name</Text>
                   <TextInput
-                    value={planPrice}
-                    onChangeText={setPlanPrice}
-                    placeholder="299"
-                    placeholderTextColor="#6C757D"
-                    keyboardType="numeric"
-                    className="text-primary text-base"
+                    className="bg-slate-50 rounded-2xl p-4 text-slate-900 font-bold border border-slate-100"
+                    placeholder="e.g. Platinum Access"
+                    value={planName} onChangeText={setPlanName}
+                  />
+                </View>
+
+                <View className="flex-row space-x-4">
+                  <View className="flex-1">
+                    <Text className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2 ml-1">Price (₹)</Text>
+                    <TextInput
+                      className="bg-slate-50 rounded-2xl p-4 text-slate-900 font-bold border border-slate-100"
+                      placeholder="999" keyboardType="numeric"
+                      value={planPrice} onChangeText={setPlanPrice}
+                    />
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2 ml-1">Billing</Text>
+                    <View className="flex-row bg-slate-50 rounded-2xl p-1 border border-slate-100">
+                      {['monthly', 'yearly'].map(d => (
+                        <TouchableOpacity
+                          key={d} onPress={() => setPlanDuration(d)}
+                          className={`flex-1 py-3 rounded-xl items-center ${planDuration === d ? 'bg-white shadow-sm' : ''}`}
+                        >
+                          <Text className={`text-[10px] font-black uppercase ${planDuration === d ? 'text-indigo-600' : 'text-slate-400'}`}>{d === 'monthly' ? 'MO' : 'YR'}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+                </View>
+
+                <View>
+                  <Text className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2 ml-1">Description</Text>
+                  <TextInput
+                    className="bg-slate-50 rounded-2xl p-4 text-slate-900 font-bold border border-slate-100 h-24 text-left align-top"
+                    placeholder="What's included in this plan?" multiline
+                    value={planDescription} onChangeText={setPlanDescription}
+                  />
+                </View>
+
+                <View>
+                  <Text className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2 ml-1">Features</Text>
+                  {planFeatures.map((f, i) => (
+                    <View key={i} className="flex-row items-center mb-3">
+                      <TextInput
+                        className="flex-1 bg-slate-50 rounded-2xl p-4 text-slate-900 font-bold border border-slate-100"
+                        placeholder={`Feature ${i + 1}`}
+                        value={f} onChangeText={(val) => {
+                          const newF = [...planFeatures];
+                          newF[i] = val;
+                          setPlanFeatures(newF);
+                        }}
+                      />
+                      <TouchableOpacity
+                        onPress={() => setPlanFeatures(planFeatures.filter((_, idx) => idx !== i))}
+                        className="ml-3 w-12 h-12 bg-rose-50 rounded-xl justify-center items-center"
+                      >
+                        <Ionicons name="close" size={20} color="#F43F5E" />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                  <TouchableOpacity
+                    onPress={() => setPlanFeatures([...planFeatures, ''])}
+                    className="py-3 border-2 border-dashed border-slate-200 rounded-2xl items-center mt-2"
+                  >
+                    <Text className="text-slate-400 font-black text-xs">+ Add Another Feature</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <View className="bg-slate-50 rounded-[32px] p-6 flex-row items-center justify-between border border-slate-100">
+                  <View>
+                    <Text className="text-slate-900 font-black">Active Status</Text>
+                    <Text className="text-slate-400 text-xs font-bold">Visible to users immediately</Text>
+                  </View>
+                  <Switch
+                    value={isActive} onValueChange={setIsActive}
+                    trackColor={{ false: '#E2E8F0', true: '#10B981' }}
+                    thumbColor="#white"
                   />
                 </View>
               </View>
 
-              <View className="flex-1">
-                <Text className="text-primary text-sm font-semibold mb-2">
-                  Duration *
-                </Text>
-                <View className="bg-gray-50 rounded-2xl p-4">
-                  <TouchableOpacity
-                    onPress={() => {
-                      Alert.alert('Select Duration', '', [
-                        { text: 'Monthly', onPress: () => setPlanDuration('monthly') },
-                        { text: 'Quarterly', onPress: () => setPlanDuration('quarterly') },
-                        { text: 'Yearly', onPress: () => setPlanDuration('yearly') },
-                      ]);
-                    }}
-                  >
-                    <Text className="text-primary text-base capitalize">
-                      {planDuration}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
-
-            {/* Description */}
-            <View className="mb-4">
-              <Text className="text-primary text-sm font-semibold mb-2">
-                Description *
-              </Text>
-              <View className="bg-gray-50 rounded-2xl p-4">
-                <TextInput
-                  value={planDescription}
-                  onChangeText={setPlanDescription}
-                  placeholder="Brief description of the plan"
-                  placeholderTextColor="#6C757D"
-                  multiline
-                  numberOfLines={2}
-                  textAlignVertical="top"
-                  className="text-primary text-base"
-                />
-              </View>
-            </View>
-
-            {/* Features */}
-            <View className="mb-4">
-              <View className="flex-row items-center justify-between mb-2">
-                <Text className="text-primary text-sm font-semibold">
-                  Features *
-                </Text>
-                <TouchableOpacity
-                  onPress={addFeature}
-                  className="bg-accent/10 px-3 py-1 rounded-full"
-                  activeOpacity={0.8}
-                >
-                  <Text className="text-accent text-xs font-semibold">+ Add</Text>
+              <View className="flex-row mt-10 space-x-4">
+                <TouchableOpacity onPress={() => setPlanModalVisible(false)} className="flex-1 py-4 items-center"><Text className="text-slate-400 font-black">Cancel</Text></TouchableOpacity>
+                <TouchableOpacity onPress={handleSavePlan} className="flex-[2] rounded-3xl overflow-hidden">
+                  <LinearGradient colors={['#4F46E5', '#3730A3']} className="py-4 items-center">
+                    <Text className="text-white font-black text-lg">{isEditMode ? 'Update Plan' : 'Create Plan'}</Text>
+                  </LinearGradient>
                 </TouchableOpacity>
               </View>
-
-              {planFeatures.map((feature, index) => (
-                <View key={index} className="flex-row items-center mb-2">
-                  <View className="flex-1 bg-gray-50 rounded-2xl p-4 mr-2">
-                    <TextInput
-                      value={feature}
-                      onChangeText={(value) => updateFeature(index, value)}
-                      placeholder={`Feature ${index + 1}`}
-                      placeholderTextColor="#6C757D"
-                      className="text-primary text-base"
-                    />
-                  </View>
-                  {planFeatures.length > 1 && (
-                    <TouchableOpacity
-                      onPress={() => removeFeature(index)}
-                      className="w-10 h-10 bg-red-50 rounded-xl justify-center items-center"
-                      activeOpacity={0.8}
-                    >
-                      <Ionicons name="trash" size={18} color="#dc2626" />
-                    </TouchableOpacity>
-                  )}
-                </View>
-              ))}
-            </View>
-
-            {/* Active Status */}
-            <View className="bg-gray-50 rounded-2xl p-4 mb-6">
-              <View className="flex-row items-center justify-between">
-                <View>
-                  <Text className="text-primary text-sm font-semibold mb-1">
-                    Plan Status
-                  </Text>
-                  <Text className="text-secondary text-xs">
-                    {isActive ? 'Plan is active and visible to users' : 'Plan is inactive'}
-                  </Text>
-                </View>
-                <Switch
-                  value={isActive}
-                  onValueChange={setIsActive}
-                  trackColor={{ false: '#D1D5DB', true: '#00C851' }}
-                  thumbColor="#ffffff"
-                />
-              </View>
-            </View>
-
-            {/* Action Buttons */}
-            <View className="flex-row space-x-4">
-              <TouchableOpacity
-                onPress={isEdit ? closeEditPlanModal : closeAddPlanModal}
-                className="flex-1 bg-gray-200 rounded-2xl py-4 justify-center items-center"
-                activeOpacity={0.8}
-              >
-                <Text className="text-primary text-base font-semibold">Cancel</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={isEdit ? handleUpdatePlan : handleCreatePlan}
-                activeOpacity={0.8}
-                className="flex-1 rounded-2xl overflow-hidden"
-              >
-                <LinearGradient
-                  colors={['#00C851', '#00A843']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={{
-                    borderRadius: 16,
-                    paddingVertical: 16,
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                  }}
-                >
-                  <Text className="text-white text-base font-semibold">
-                    {isEdit ? 'Update Plan' : 'Create Plan'}
-                  </Text>
-                </LinearGradient>
-              </TouchableOpacity>
-            </View>
-          </ScrollView>
-        </Animated.View>
-      </View>
-    </Modal>
-  );
-
-  return (
-    <View className="flex-1 bg-gray-50">
-      <StatusBar barStyle="dark-content" backgroundColor="#f9fafb" />
-
-      {/* Header */}
-      <Animated.View
-        style={{
-          opacity: fadeAnim,
-          transform: [{ translateY: slideUpAnim }],
-        }}
-        className="bg-white pt-12 pb-4 px-6 shadow-sm shadow-black/5"
-      >
-        <View className="flex-row items-center justify-between mb-4">
-          <TouchableOpacity
-            onPress={() => navigation.goBack()}
-            className="w-10 h-10 bg-gray-100 rounded-2xl justify-center items-center"
-            activeOpacity={0.7}
-          >
-            <Ionicons name="chevron-back" size={20} color="#1A1B23" />
-          </TouchableOpacity>
-
-          <View className="flex-1 items-center">
-            <Text className="text-primary text-lg font-semibold">
-              Subscription Plans
-            </Text>
+            </ScrollView>
           </View>
-
-          <TouchableOpacity
-            onPress={openAddPlanModal}
-            className="w-10 h-10 bg-accent/10 rounded-2xl justify-center items-center"
-            activeOpacity={0.7}
-          >
-            <Ionicons name="add" size={24} color="#00C851" />
-          </TouchableOpacity>
         </View>
-      </Animated.View>
-
-      {/* Tabs */}
-      <Animated.View
-        style={{
-          opacity: fadeAnim,
-          transform: [{ translateY: slideUpAnim }],
-        }}
-        className="bg-white px-6 py-3"
-      >
-        <View className="flex-row bg-gray-100 rounded-2xl p-1">
-          <TouchableOpacity
-            onPress={() => setActiveTab('owner')}
-            className={`flex-1 py-2 rounded-xl ${activeTab === 'owner' ? 'bg-white' : ''
-              }`}
-            activeOpacity={0.8}
-          >
-            <Text
-              className={`text-xs font-semibold text-center ${activeTab === 'owner' ? 'text-primary' : 'text-secondary'
-                }`}
-            >
-              Car Owners
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={() => setActiveTab('driver')}
-            className={`flex-1 py-2 rounded-xl ${activeTab === 'driver' ? 'bg-white' : ''
-              }`}
-            activeOpacity={0.8}
-          >
-            <Text
-              className={`text-xs font-semibold text-center ${activeTab === 'driver' ? 'text-primary' : 'text-secondary'
-                }`}
-            >
-              Drivers
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={() => setActiveTab('carwash')}
-            className={`flex-1 py-2 rounded-xl ${activeTab === 'carwash' ? 'bg-white' : ''
-              }`}
-            activeOpacity={0.8}
-          >
-            <Text
-              className={`text-xs font-semibold text-center ${activeTab === 'carwash' ? 'text-primary' : 'text-secondary'
-                }`}
-            >
-              Car Wash
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </Animated.View>
-
-      {/* Plans List */}
-      <ScrollView className="flex-1 px-4 pt-4" showsVerticalScrollIndicator={false}>
-        <Animated.View
-          style={{
-            opacity: fadeAnim,
-            transform: [{ translateY: slideUpAnim }],
-          }}
-        >
-          <Text className="text-primary text-base font-bold mb-4">
-            {getTabTitle()}
-          </Text>
-
-          {getCurrentPlans().length === 0 ? (
-            <View className="items-center justify-center py-20">
-              <View className="w-24 h-24 bg-gray-100 rounded-full justify-center items-center mb-4">
-                <MaterialIcons name="card-membership" size={40} color="#6C757D" />
-              </View>
-              <Text className="text-secondary text-base mb-2">No plans created yet</Text>
-              <TouchableOpacity
-                onPress={openAddPlanModal}
-                className="bg-accent/10 px-4 py-2 rounded-xl"
-                activeOpacity={0.8}
-              >
-                <Text className="text-accent text-sm font-semibold">
-                  Create First Plan
-                </Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            getCurrentPlans().map(renderPlanCard)
-          )}
-        </Animated.View>
-      </ScrollView>
-
-      {/* Add Plan Modal */}
-      {renderPlanFormModal(false)}
-
-      {/* Edit Plan Modal */}
-      {renderPlanFormModal(true)}
+      </Modal>
     </View>
   );
 };

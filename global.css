@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 * {
-  font-family: './assets/fonts/Montserrat-Medium.ttf', sans-serif;
+  font-family: 'Montserrat-Medium', sans-serif;
 }
 
 /* Override for specific elements if needed */

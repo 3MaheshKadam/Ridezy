@@ -14,8 +14,6 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
-import '../../global.css';
-
 import { post } from '../../lib/api';
 import { endpoints, BASE_URL } from '../../config/apiConfig';
 // ... (start of file, need to be careful with imports, better to just edit the specific part inside handleDocumentUpload and the import line)

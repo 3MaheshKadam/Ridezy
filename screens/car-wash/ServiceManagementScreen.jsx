@@ -11,7 +11,6 @@ import {
     Modal
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import '../../global.css';
 import { get, post, put, del } from '../../lib/api';
 import { endpoints } from '../../config/apiConfig';
 

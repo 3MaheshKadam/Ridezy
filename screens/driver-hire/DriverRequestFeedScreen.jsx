@@ -13,7 +13,6 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
-import '../../global.css';
 import { get, post } from '../../lib/api';
 import { endpoints } from '../../config/apiConfig';
 import { useFocusEffect } from '@react-navigation/native';

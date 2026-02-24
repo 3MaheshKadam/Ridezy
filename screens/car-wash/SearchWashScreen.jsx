@@ -18,8 +18,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { get } from '../../lib/api';
 import { endpoints } from '../../config/apiConfig';
-import '../../global.css';
-
 const { width, height } = Dimensions.get('window');
 const CARD_WIDTH = width * 0.85;
 const SPACING = 15;

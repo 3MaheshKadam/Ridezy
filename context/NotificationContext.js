@@ -4,8 +4,6 @@ import { get, patch } from '../lib/api';
 import { endpoints } from '../config/apiConfig';
 import { useUser } from './UserContext';
 import { Ionicons } from '@expo/vector-icons';
-import '../global.css';
-
 const NotificationContext = createContext();
 
 export const NotificationProvider = ({ children }) => {

@@ -9,8 +9,6 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
-import '../../global.css'; // Import NativeWind styles
-
 const { width, height } = Dimensions.get('window');
 
 const SplashScreen = ({ navigation }) => {

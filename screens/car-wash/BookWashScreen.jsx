@@ -14,8 +14,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { get, post } from '../../lib/api';
 import { endpoints } from '../../config/apiConfig';
-import '../../global.css';
-
 const { width, height } = Dimensions.get('window');
 
 const BookWashScreen = ({ navigation, route }) => {
@@ -38,18 +36,13 @@ const BookWashScreen = ({ navigation, route }) => {
   const [services, setServices] = useState([]);
   const [isLoadingServices, setIsLoadingServices] = useState(true);
 
-  // Vehicle types
-  const vehicleTypes = [
-    { id: 'hatchback', name: 'Hatchback', icon: '🚗', priceMultiplier: 1 },
-    { id: 'sedan', name: 'Sedan', icon: '🚙', priceMultiplier: 1.2 },
-    { id: 'suv', name: 'SUV', icon: '🚐', priceMultiplier: 1.5 },
-    { id: 'luxury', name: 'Luxury Car', icon: '🏎️', priceMultiplier: 2 },
-  ];
+  const [vehicleTypes, setVehicleTypes] = useState([]);
 
-  // Time slots
+  // Time slots for scheduled rides
   const timeSlots = [
-    '09:00 AM', '10:00 AM', '11:00 AM', '12:00 PM',
-    '01:00 PM', '02:00 PM', '03:00 PM', '04:00 PM', '05:00 PM'
+    '06:00 AM', '07:00 AM', '08:00 AM', '09:00 AM', '10:00 AM', '11:00 AM', '12:00 PM',
+    '01:00 PM', '02:00 PM', '03:00 PM', '04:00 PM', '05:00 PM', '06:00 PM',
+    '07:00 PM', '08:00 PM', '09:00 PM', '10:00 PM', '11:00 PM'
   ];
 
   // Generate next 7 days
@@ -63,13 +56,57 @@ const BookWashScreen = ({ navigation, route }) => {
     return days;
   };
 
+  const getValidTimeSlots = () => {
+    const today = new Date();
+    const isToday = selectedDate.toDateString() === today.toDateString();
+
+    if (!isToday) return timeSlots;
+
+    return timeSlots.filter(time => {
+      const match = time.match(/(\d+):(\d+)\s(AM|PM)/);
+      if (match) {
+        let hours = parseInt(match[1]);
+        const ampm = match[3];
+        if (ampm === 'PM' && hours < 12) hours += 12;
+        if (ampm === 'AM' && hours === 12) hours = 0;
+
+        // Use a 30-minute buffer for absolute time slots
+        const slotTime = new Date();
+        slotTime.setHours(hours, parseInt(match[2]), 0, 0);
+        return slotTime > today;
+      }
+      return true;
+    });
+  };
+
+  // Ensure selectedTimeSlot is valid when date changes
+  useEffect(() => {
+    const validSlots = getValidTimeSlots();
+    if (selectedTimeSlot && !validSlots.includes(selectedTimeSlot)) {
+      setSelectedTimeSlot('');
+    }
+  }, [selectedDate]);
+
   useEffect(() => {
     startAnimations();
     fetchUserVehicles();
+    fetchPricingConfig();
     if (center?.id || center?._id) {
       fetchCenterServices();
     }
   }, []);
+
+  const fetchPricingConfig = async () => {
+    try {
+      const data = await get(endpoints.config.pricing);
+      if (data) {
+        if (data.vehicles) setVehicleTypes(data.vehicles);
+        if (data.addOns) setAddOnServices(data.addOns);
+      }
+    } catch (error) {
+      console.log('Failed to fetch pricing config', error);
+    }
+  };
 
   const fetchCenterServices = async () => {
     try {
@@ -130,11 +167,7 @@ const BookWashScreen = ({ navigation, route }) => {
     }
   };
 
-  // Placeholder for Add-ons (can be made dynamic later)
-  const addOnServices = [
-    { id: 'ceramic', name: 'Ceramic Coating', price: 199, duration: '15 min' },
-    { id: 'perfume', name: 'Car Perfume', price: 49, duration: '2 min' },
-  ];
+  const [addOnServices, setAddOnServices] = useState([]);
 
   const startAnimations = () => {
     Animated.parallel([
@@ -352,18 +385,20 @@ const BookWashScreen = ({ navigation, route }) => {
 
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <View className="flex-row space-x-3">
-              <TouchableOpacity
-                onPress={() => navigation.navigate('RegisterVehicle')} // Assuming this exists or will exist
-                className="bg-white rounded-2xl p-4 border-2 border-dashed border-gray-300 shadow-sm shadow-black/5 items-center justify-center min-w-[120px]"
-                activeOpacity={0.8}
-              >
-                <View className="w-10 h-10 bg-gray-100 rounded-full items-center justify-center mb-2">
-                  <Ionicons name="add" size={24} color="#6C757D" />
-                </View>
-                <Text className="text-primary text-sm font-semibold">
-                  Add New
-                </Text>
-              </TouchableOpacity>
+              {userVehicles.length === 0 && (
+                <TouchableOpacity
+                  onPress={() => navigation.navigate('Profile')} // Link to profile or vehicle registration screen
+                  className="bg-white rounded-2xl p-4 border-2 border-dashed border-gray-300 shadow-sm shadow-black/5 items-center justify-center min-w-[120px]"
+                  activeOpacity={0.8}
+                >
+                  <View className="w-10 h-10 bg-gray-100 rounded-full items-center justify-center mb-2">
+                    <Ionicons name="add" size={24} color="#6C757D" />
+                  </View>
+                  <Text className="text-primary text-sm font-semibold">
+                    Add New
+                  </Text>
+                </TouchableOpacity>
+              )}
 
               {userVehicles.map((vehicle) => (
                 <TouchableOpacity
@@ -613,7 +648,7 @@ const BookWashScreen = ({ navigation, route }) => {
           </Text>
 
           <View className="flex-row flex-wrap gap-3">
-            {timeSlots.map((time) => (
+            {getValidTimeSlots().map((time) => (
               <TouchableOpacity
                 key={time}
                 onPress={() => setSelectedTimeSlot(time)}

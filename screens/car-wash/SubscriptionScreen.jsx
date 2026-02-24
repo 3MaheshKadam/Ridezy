@@ -14,8 +14,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { get, post } from '../../lib/api';
 import { endpoints } from '../../config/apiConfig';
-import '../../global.css';
-
 const { width, height } = Dimensions.get('window');
 
 const SubscriptionScreen = ({ navigation }) => {
@@ -43,15 +41,15 @@ const SubscriptionScreen = ({ navigation }) => {
 
   const [subscriptionPlans, setSubscriptionPlans] = useState([]);
 
-  // Usage statistics (Still Mocked)
-  const usageStats = {
-    bookingsThisMonth: 78,
-    bookingLimit: billingCycle === 'monthly' && currentPlan.toLowerCase() === 'basic' ? 50 : '∞',
-    staffMembers: 3,
-    staffLimit: currentPlan.toLowerCase() === 'basic' ? 1 : '∞',
-    storageUsed: '2.3 GB',
+  // Usage statistics (dynamic)
+  const [usageStats, setUsageStats] = useState({
+    bookingsThisMonth: 0,
+    bookingLimit: '∞',
+    staffMembers: 0,
+    staffLimit: '∞',
+    storageUsed: 'N/A',
     storageLimit: '10 GB',
-  };
+  });
 
   useEffect(() => {
     startAnimations();
@@ -60,40 +58,55 @@ const SubscriptionScreen = ({ navigation }) => {
 
   const fetchSubscription = async () => {
     try {
-      const data = await get(endpoints.centers.subscription);
-      if (data) {
-        setCurrentPlan(data.plan.toLowerCase());
+      const [subData, dashData, staffData] = await Promise.allSettled([
+        get(endpoints.centers.subscription),
+        get(endpoints.centers.dashboard),
+        get(endpoints.centers.staff),
+      ]);
 
-        // Update subscription object
+      // Subscription data
+      if (subData.status === 'fulfilled' && subData.value) {
+        const data = subData.value;
+        setCurrentPlan(data.plan.toLowerCase());
         setCurrentSubscription(prev => ({
           ...prev,
           plan: data.plan,
           expiryDate: data.expiry,
           status: new Date(data.expiry) > new Date() ? 'Active' : 'Expired'
         }));
-
         if (data.availablePlans) {
-          // Map backend plans to frontend structure if needed, or simply set them
-          // We need to support filtering by monthly/yearly, so we keep all of them
-          // and filter in the render or derived state.
           const mappedPlans = data.availablePlans.map(p => ({
             id: p._id,
             name: p.name,
             subtitle: p.description,
-            price: p.price, // Unified price field
-            duration: p.duration, // 'monthly' or 'yearly'
+            price: p.price,
+            duration: p.duration,
             features: p.features,
             color: p.color || '#3B82F6',
-            // Add hardcoded yearly price/discount if needed for display logic, 
-            // but since we have strict duration plans now, we might simpler login.
           }));
           setSubscriptionPlans(mappedPlans);
         }
-
-        if (data.billingHistory) {
-          setBillingHistory(data.billingHistory);
+        if (subData.value.billingHistory) {
+          setBillingHistory(subData.value.billingHistory);
         }
       }
+
+      // Usage stats — bookings from dashboard
+      const bookingsCount = dashData.status === 'fulfilled' && dashData.value?.dashboardData?.stats?.totalBookings
+        ? dashData.value.dashboardData.stats.totalBookings
+        : 0;
+
+      // Usage stats — staff count from staff endpoint
+      const staffCount = staffData.status === 'fulfilled' && staffData.value?.staff
+        ? staffData.value.staff.length
+        : 0;
+
+      setUsageStats(prev => ({
+        ...prev,
+        bookingsThisMonth: bookingsCount,
+        staffMembers: staffCount,
+      }));
+
     } catch (error) {
       console.error("Fetch subscription failed", error);
     }

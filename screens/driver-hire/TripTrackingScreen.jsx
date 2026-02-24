@@ -11,7 +11,6 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import '../../global.css';
 import { get } from '../../lib/api';
 import { endpoints } from '../../config/apiConfig';
 import { useUser } from '../../context/UserContext';

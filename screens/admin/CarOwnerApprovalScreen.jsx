@@ -15,7 +15,6 @@ import {
     Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import '../../global.css';
 import { get, post } from '../../lib/api';
 import { endpoints } from '../../config/apiConfig';
 
@@ -52,7 +51,11 @@ const CarOwnerApprovalScreen = ({ navigation }) => {
             // Filter for 'VEHICLE' type (Car Owner Approvals)
             const vehicles = data.filter(item => item.type === 'VEHICLE');
 
-            setPendingList(vehicles.filter(item => item.status === 'PENDING' || item.status === 'PENDING_APPROVAL'));
+            setPendingList(vehicles.filter(item =>
+                item.status === 'PENDING' ||
+                item.status === 'PENDING_APPROVAL' ||
+                item.status === 'PENDING_ONBOARDING'
+            ));
             setApprovedList(vehicles.filter(item => item.status === 'APPROVED' || item.status === 'ACTIVE'));
             setRejectedList(vehicles.filter(item => item.status === 'REJECTED'));
 
@@ -177,48 +180,54 @@ const CarOwnerApprovalScreen = ({ navigation }) => {
             Alert.alert('Error', 'Failed to reject vehicle.');
         }
     };
+    const renderCard = (item) => {
+        try {
+            return (
+                <TouchableOpacity
+                    key={item.id ? String(item.id) : Math.random().toString()}
+                    onPress={() => openDetailsModal(item)}
+                    className="bg-white rounded-2xl p-4 mb-4 shadow-sm shadow-black/5"
+                    activeOpacity={0.8}
+                >
+                    <View className="flex-row items-center justify-between mb-2">
+                        <Text className="text-primary text-lg font-bold">{String(item.ownerName || 'Unknown Owner')}</Text>
+                        <View className={`px-2 py-1 rounded-full ${item.status === 'PENDING' ? 'bg-yellow-50' :
+                            (item.status === 'APPROVED' || item.status === 'ACTIVE') ? 'bg-green-50' : 'bg-red-50'
+                            }`}>
+                            <Text className={`text-xs font-bold ${item.status === 'PENDING' ? 'text-yellow-600' :
+                                (item.status === 'APPROVED' || item.status === 'ACTIVE') ? 'text-green-600' : 'text-red-600'
+                                }`}>{String(item.status || 'UNKNOWN')}</Text>
+                        </View>
+                    </View>
 
-    const renderCard = (item) => (
-        <TouchableOpacity
-            key={item.id}
-            onPress={() => openDetailsModal(item)}
-            className="bg-white rounded-2xl p-4 mb-4 shadow-sm shadow-black/5"
-            activeOpacity={0.8}
-        >
-            <View className="flex-row items-center justify-between mb-2">
-                <Text className="text-primary text-lg font-bold">{item.ownerName}</Text>
-                <View className={`px-2 py-1 rounded-full ${item.status === 'PENDING' ? 'bg-yellow-50' :
-                    (item.status === 'APPROVED' || item.status === 'ACTIVE') ? 'bg-green-50' : 'bg-red-50'
-                    }`}>
-                    <Text className={`text-xs font-bold ${item.status === 'PENDING' ? 'text-yellow-600' :
-                        (item.status === 'APPROVED' || item.status === 'ACTIVE') ? 'text-green-600' : 'text-red-600'
-                        }`}>{item.status}</Text>
-                </View>
-            </View>
+                    <View className="mb-2">
+                        <Text className="text-secondary text-base">{String(item.vehicleMake || '')} {String(item.vehicleModel || '')}</Text>
+                        <Text className="text-secondary text-sm font-semibold">{String(item.vehicleNumber || 'N/A')}</Text>
+                    </View>
 
-            <View className="mb-2">
-                <Text className="text-secondary text-base">{item.vehicleMake} {item.vehicleModel}</Text>
-                <Text className="text-secondary text-sm font-semibold">{item.vehicleNumber}</Text>
-            </View>
-
-            {(item.status === 'PENDING' || item.status === 'PENDING_APPROVAL') && (
-                <View className="flex-row mt-2 space-x-3">
-                    <TouchableOpacity
-                        onPress={(e) => { e.stopPropagation(); handleApprove(item); }}
-                        className="flex-1 bg-accent/10 rounded-xl py-2 flex-row justify-center items-center"
-                    >
-                        <Text className="text-accent font-semibold">Approve</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        onPress={(e) => { e.stopPropagation(); openRejectModal(item); }}
-                        className="flex-1 bg-red-50 rounded-xl py-2 flex-row justify-center items-center"
-                    >
-                        <Text className="text-red-600 font-semibold">Reject</Text>
-                    </TouchableOpacity>
-                </View>
-            )}
-        </TouchableOpacity>
-    );
+                    {(item.status === 'PENDING' || item.status === 'PENDING_APPROVAL') && (
+                        <View className="flex-row mt-2 space-x-3">
+                            <TouchableOpacity
+                                onPress={(e) => { e.stopPropagation(); handleApprove(item); }}
+                                className="flex-1 bg-accent/10 rounded-xl py-2 flex-row justify-center items-center"
+                            >
+                                <Text className="text-accent font-semibold">Approve</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                onPress={(e) => { e.stopPropagation(); openRejectModal(item); }}
+                                className="flex-1 bg-red-50 rounded-xl py-2 flex-row justify-center items-center"
+                            >
+                                <Text className="text-red-600 font-semibold">Reject</Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
+                </TouchableOpacity>
+            );
+        } catch (error) {
+            console.error('Error rendering car owner card:', error);
+            return null;
+        }
+    };
 
     const getCurrentList = () => {
         switch (activeTab) {
