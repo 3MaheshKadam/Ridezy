@@ -1,47 +1,31 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
-  FlatList,
-  ActivityIndicator,
-  Modal,
   ScrollView,
-  Alert,
-  Linking,
-  TextInput,
   Animated,
   Dimensions,
   StatusBar,
+  ActivityIndicator,
+  Modal,
+  Image,
+  Alert,
   Platform,
+  StyleSheet,
+  TextInput,
 } from 'react-native';
-import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { get, post } from '../../lib/api';
 import { endpoints } from '../../config/apiConfig';
 
-const { width } = Dimensions.get('window');
-
-const GlassCard = ({ children, className = "", style = {} }) => (
-  <View
-    className={`bg-white/95 border border-slate-100 rounded-[32px] overflow-hidden ${className}`}
-    style={{
-      ...Platform.select({
-        ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.05, shadowRadius: 15 },
-        android: { elevation: 10 }
-      }),
-      ...style
-    }}
-  >
-    {children}
-  </View>
-);
+const { width, height } = Dimensions.get('window');
 
 const DriverApprovalScreen = ({ navigation }) => {
-  const [activeTab, setActiveTab] = useState('Pending');
+  const [activeTab, setActiveTab] = useState('Pending'); // Pending, Approved, Rejected
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [data, setData] = useState({ pending: [], approved: [], rejected: [] });
+  const [drivers, setDrivers] = useState({ pending: [], approved: [], rejected: [] });
   const [selectedItem, setSelectedItem] = useState(null);
   const [detailsModalVisible, setDetailsModalVisible] = useState(false);
   const [rejectModalVisible, setRejectModalVisible] = useState(false);
@@ -52,56 +36,51 @@ const DriverApprovalScreen = ({ navigation }) => {
 
   useEffect(() => {
     animateScreen();
-    fetchData();
+    fetchDrivers();
   }, []);
 
   const animateScreen = () => {
     Animated.parallel([
       Animated.timing(fadeAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
-      Animated.spring(slideUpAnim, { toValue: 0, tension: 50, friction: 8, useNativeDriver: true })
+      Animated.timing(slideUpAnim, { toValue: 0, duration: 600, useNativeDriver: true })
     ]).start();
   };
 
-  const fetchData = async () => {
+  const fetchDrivers = async () => {
     setLoading(true);
     try {
       const response = await get(endpoints.admin.approvals);
-      // Backend returns a flat array of all items
       const allItems = Array.isArray(response) ? response : [];
-      const drivers = allItems.filter(i => i.type === 'DRIVER');
+      const driverItems = allItems.filter(i => i.type === 'DRIVER');
 
-      setData({
-        pending: drivers.filter(i =>
-          i.status === 'PENDING_APPROVAL' ||
-          i.status === 'PENDING_ONBOARDING' ||
-          i.status === 'PENDING'
-        ),
-        approved: drivers.filter(i => i.status === 'ACTIVE' || i.status === 'APPROVED'),
-        rejected: drivers.filter(i => i.status === 'REJECTED'),
+      setDrivers({
+        pending: driverItems.filter(i => i.status === 'PENDING_APPROVAL' || i.status === 'PENDING'),
+        approved: driverItems.filter(i => i.status === 'ACTIVE' || i.status === 'APPROVED'),
+        rejected: driverItems.filter(i => i.status === 'REJECTED'),
       });
     } catch (error) {
       console.error('Fetch error:', error);
-      Alert.alert('Error', 'Unable to load approval data.');
+      Alert.alert('Error', 'Unable to load drivers.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleApprove = async (item) => {
-    if (!item || !item.id) return;
-    setDetailsModalVisible(false);
+  const handleApprove = async (driver) => {
+    if (!driver || !driver.id) return;
     try {
-      await post(endpoints.admin.approve, { id: item.id, action: 'APPROVE', type: 'DRIVER' });
-      Alert.alert('Success', 'Driver registration approved successfully.');
-      fetchData();
+      await post(endpoints.admin.approve, { id: driver.id, action: 'APPROVE', type: 'DRIVER' });
+      Alert.alert('Success', 'Driver approved successfully');
+      setDetailsModalVisible(false);
+      fetchDrivers();
     } catch (error) {
-      Alert.alert('Error', error.message || 'Approval failed.');
+      Alert.alert('Error', 'Failed to approve driver');
     }
   };
 
   const handleReject = async () => {
     if (!selectedItem || !rejectionReason.trim()) {
-      Alert.alert('Required', 'Please enter a rejection reason.');
+      Alert.alert('Error', 'Please provide a rejection reason');
       return;
     }
     try {
@@ -111,199 +90,177 @@ const DriverApprovalScreen = ({ navigation }) => {
         type: 'DRIVER',
         reason: rejectionReason
       });
-      Alert.alert('Rejected', 'Registration has been rejected.');
+      Alert.alert('Rejected', 'Driver registration rejected');
       setRejectModalVisible(false);
       setRejectionReason('');
-      fetchData();
+      fetchDrivers();
     } catch (error) {
-      Alert.alert('Error', error.message || 'Rejection failed.');
+      Alert.alert('Error', 'Failed to reject driver');
     }
   };
 
-  const filteredData = useMemo(() => {
-    const currentList = activeTab === 'Pending' ? data.pending :
-      activeTab === 'Approved' ? data.approved : data.rejected;
-
-    if (!searchQuery.trim()) return currentList;
-
-    const query = searchQuery.toLowerCase();
-    return currentList.filter(item =>
-      (item.name && item.name.toLowerCase().includes(query)) ||
-      (item.ownerName && item.ownerName.toLowerCase().includes(query))
-    );
-  }, [activeTab, data, searchQuery]);
-
-  const renderCard = ({ item }) => {
+  const renderCard = (item) => {
     const isApproved = activeTab === 'Approved';
     const isRejected = activeTab === 'Rejected';
 
     return (
-      <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideUpAnim }] }}>
-        <TouchableOpacity activeOpacity={0.9} onPress={() => { setSelectedItem(item); setDetailsModalVisible(true); }}>
-          <GlassCard className="mb-6 p-5">
-            <View className="flex-row items-center mb-4">
-              <View className={`w-14 h-14 rounded-2xl justify-center items-center mr-4 ${isApproved ? 'bg-emerald-50' : isRejected ? 'bg-rose-50' : 'bg-violet-50'
-                }`}>
-                <Ionicons
-                  name="person"
-                  size={32}
-                  color={isApproved ? '#10B981' : isRejected ? '#F43F5E' : '#8B5CF6'}
-                />
-              </View>
-              <View className="flex-1">
-                <Text className="text-slate-900 text-lg font-black" numberOfLines={1}>
-                  {String(item.name || item.ownerName || 'N/A')}
-                </Text>
-                <Text className="text-slate-500 text-xs font-bold uppercase tracking-wider">
-                  {String(item.role || 'Professional Driver')}
-                </Text>
-              </View>
-              <View className={`px-3 py-1 rounded-full ${isApproved ? 'bg-emerald-100' : isRejected ? 'bg-rose-100' : 'bg-violet-100'
-                }`}>
-                <Text className={`text-[10px] font-black uppercase ${isApproved ? 'text-emerald-700' : isRejected ? 'text-rose-700' : 'text-violet-700'
-                  }`}>
-                  {activeTab}
-                </Text>
-              </View>
+      <Animated.View key={String(item.id)} style={{ opacity: fadeAnim, transform: [{ translateY: slideUpAnim }] }}>
+        <TouchableOpacity activeOpacity={0.9} onPress={() => { setSelectedItem(item); setDetailsModalVisible(true); }} style={styles.card}>
+          <View style={styles.cardHeader}>
+            <View style={[styles.avatarContainer, isApproved ? styles.avatarApproved : isRejected ? styles.avatarRejected : styles.avatarPending]}>
+              <Text style={styles.avatarText}>{item.photo || '👨‍✈️'}</Text>
             </View>
-
-            <View className="flex-row items-center justify-between border-t border-slate-50 pt-4">
-              <View className="flex-row items-center">
-                <Ionicons name="card-outline" size={16} color="#94A3B8" />
-                <Text className="text-slate-600 text-xs font-bold ml-2">{String(item.licenseNumber || 'License N/A')}</Text>
-              </View>
-              <View className="flex-row items-center">
-                <Ionicons name="calendar-outline" size={16} color="#94A3B8" />
-                <Text className="text-slate-600 text-xs font-bold ml-2">
-                  {item.registeredDate ? new Date(item.registeredDate).toLocaleDateString() : 'N/A'}
-                </Text>
-              </View>
+            <View style={styles.headerInfo}>
+              <Text style={styles.driverName} numberOfLines={1}>
+                {String(item.name || 'N/A')}
+              </Text>
+              <Text style={styles.experienceText}>
+                {String(item.experience || 'No experience info')}
+              </Text>
             </View>
+            <View style={[styles.statusBadge, isApproved ? styles.statusBadgeApproved : isRejected ? styles.statusBadgeRejected : styles.statusBadgePending]}>
+              <Text style={[styles.statusText, isApproved ? styles.statusTextApproved : isRejected ? styles.statusTextRejected : styles.statusTextPending]}>
+                {activeTab}
+              </Text>
+            </View>
+          </View>
 
-            {activeTab === 'Pending' && (
-              <View className="flex-row mt-5 space-x-3">
-                <TouchableOpacity
-                  onPress={() => handleApprove(item)}
-                  className="flex-1 overflow-hidden rounded-2xl"
-                  activeOpacity={0.8}
-                >
-                  <LinearGradient colors={['#10B981', '#059669']} className="py-3 flex-row justify-center items-center">
-                    <Ionicons name="checkmark-circle" size={18} color="white" />
-                    <Text className="text-white font-black ml-2">Approve</Text>
-                  </LinearGradient>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => { setSelectedItem(item); setRejectModalVisible(true); }}
-                  className="flex-1 bg-slate-100 rounded-2xl py-3 flex-row justify-center items-center"
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="close-circle" size={18} color="#64748B" />
-                  <Text className="text-slate-600 font-black ml-2">Reject</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          </GlassCard>
+          <View style={styles.cardFooter}>
+            <View style={styles.footerItem}>
+              <Ionicons name="call-outline" size={16} color="#94A3B8" />
+              <Text style={styles.footerText}>{String(item.phone || 'N/A')}</Text>
+            </View>
+            <View style={styles.footerItem}>
+              <Ionicons name="car-outline" size={16} color="#94A3B8" />
+              <Text style={styles.footerText} numberOfLines={1}>{String(item.vehicleModel || 'N/A')}</Text>
+            </View>
+          </View>
+
+          {activeTab === 'Pending' && (
+            <View style={styles.cardActions}>
+              <TouchableOpacity
+                onPress={() => handleApprove(item)}
+                style={styles.approveButton}
+                activeOpacity={0.8}
+              >
+                <LinearGradient colors={['#10B981', '#059669']} style={styles.gradientButton}>
+                  <Ionicons name="checkmark-circle" size={18} color="white" />
+                  <Text style={styles.buttonText}>Approve</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => { setSelectedItem(item); setRejectModalVisible(true); }}
+                style={styles.rejectButton}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="close-circle" size={18} color="#64748B" />
+                <Text style={styles.rejectButtonText}>Reject</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </TouchableOpacity>
       </Animated.View>
     );
   };
 
-  return (
-    <View className="flex-1 bg-white">
-      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+  const currentList = activeTab === 'Pending' ? drivers.pending : activeTab === 'Approved' ? drivers.approved : drivers.rejected;
 
-      <View className="px-6 pt-14 pb-4 bg-white">
-        <View className="flex-row items-center justify-between mb-6">
-          <TouchableOpacity onPress={() => navigation.goBack()} className="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-100 justify-center items-center">
+  return (
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#f8fafc" />
+
+      <View style={styles.header}>
+        <View style={styles.headerTop}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <Ionicons name="chevron-back" size={24} color="#0F172A" />
           </TouchableOpacity>
-          <Text className="text-slate-900 text-2xl font-black">Drivers</Text>
-          <TouchableOpacity onPress={fetchData} className="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-100 justify-center items-center">
-            <Ionicons name="refresh" size={20} color="#0F172A" />
-          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Driver Approvals</Text>
         </View>
 
-        <View className="flex-row bg-slate-50 p-1.5 rounded-3xl mb-6">
+        <View style={styles.tabsContainer}>
           {['Pending', 'Approved', 'Rejected'].map(tab => (
             <TouchableOpacity
               key={tab}
               onPress={() => setActiveTab(tab)}
-              className={`flex-1 py-3 items-center rounded-2xl ${activeTab === tab ? 'bg-white shadow-sm' : ''}`}
+              style={[styles.tab, activeTab === tab && styles.activeTab]}
             >
-              <Text className={`text-xs font-black uppercase ${activeTab === tab ? 'text-violet-600' : 'text-slate-400'}`}>
+              <Text style={[styles.tabText, activeTab === tab && styles.activeTabText]}>
                 {tab}
               </Text>
             </TouchableOpacity>
           ))}
         </View>
-
-        <View className="flex-row items-center bg-slate-50 px-4 rounded-2xl border border-slate-100">
-          <Ionicons name="search" size={20} color="#94A3B8" />
-          <TextInput
-            placeholder={`Search ${activeTab.toLowerCase()} drivers...`}
-            className="flex-1 py-4 px-3 text-slate-900 font-bold text-sm"
-            placeholderTextColor="#94A3B8"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-        </View>
       </View>
 
       {loading ? (
-        <View className="flex-1 justify-center items-center"><ActivityIndicator size="large" color="#8B5CF6" /></View>
+        <View style={styles.loadingContainer}><ActivityIndicator size="large" color="#3B82F6" /></View>
       ) : (
-        <FlatList
-          data={filteredData}
-          keyExtractor={item => String(item.id)}
-          renderItem={renderCard}
-          contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 20, paddingBottom: 40 }}
-          ListEmptyComponent={
-            <View className="py-20 items-center">
-              <Ionicons name="folder-open-outline" size={64} color="#E2E8F0" />
-              <Text className="text-slate-400 font-black text-lg mt-4">No Drivers Found</Text>
+        <ScrollView contentContainerStyle={styles.listContent}>
+          {currentList.map(renderCard)}
+          {currentList.length === 0 && (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="people-outline" size={64} color="#E2E8F0" />
+              <Text style={styles.emptyText}>No Drivers Found</Text>
             </View>
-          }
-        />
+          )}
+        </ScrollView>
       )}
 
+      {/* Details Modal */}
       <Modal visible={detailsModalVisible} transparent animationType="slide">
-        <View className="flex-1 bg-black/60 justify-end">
-          <View className="bg-white rounded-t-[40px] p-8 pb-12 h-[80%]">
-            <View className="w-16 h-1 bg-slate-200 rounded-full self-center mb-8" />
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHandleContainer}>
+              <View style={styles.modalHandle} />
+            </View>
             <ScrollView showsVerticalScrollIndicator={false}>
               {selectedItem && (
                 <View>
-                  <View className="items-center mb-8">
-                    <View className="w-20 h-20 bg-violet-50 rounded-3xl justify-center items-center mb-4">
-                      <Ionicons name="person" size={48} color="#8B5CF6" />
+                  <View style={styles.modalHeader}>
+                    <View style={styles.modalAvatar}>
+                      <Text style={styles.modalAvatarText}>{selectedItem.photo || '👨‍✈️'}</Text>
                     </View>
-                    <Text className="text-slate-900 text-2xl font-black text-center">{String(selectedItem.name || selectedItem.ownerName || 'N/A')}</Text>
-                    <Text className="text-slate-500 font-bold uppercase tracking-widest text-xs mt-1">License: {String(selectedItem.licenseNumber || 'N/A')}</Text>
+                    <Text style={styles.modalTitle}>{String(selectedItem.name || 'N/A')}</Text>
+                    <Text style={styles.modalSubtitle}>{String(selectedItem.experience || 'No experience info')}</Text>
                   </View>
 
-                  <View className="bg-slate-50 rounded-[32px] p-6 mb-6">
-                    <Text className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-4">Driver Details</Text>
-                    <View className="space-y-4">
-                      <View className="flex-row justify-between">
-                        <Text className="text-slate-500 font-bold text-sm">Experience</Text>
-                        <Text className="text-slate-900 font-black text-sm">{String(selectedItem.experience || 'N/A')} Years</Text>
-                      </View>
-                      <View className="flex-row justify-between">
-                        <Text className="text-slate-500 font-bold text-sm">Location</Text>
-                        <Text className="text-slate-900 font-black text-sm">{String(selectedItem.address || selectedItem.location || 'N/A')}</Text>
-                      </View>
+                  <View style={styles.detailsCard}>
+                    <Text style={styles.detailsLabel}>Personal Information</Text>
+                    <View style={styles.detailRow}>
+                      <Text style={styles.detailTitle}>Email</Text>
+                      <Text style={styles.detailValue}>{String(selectedItem.email || 'N/A')}</Text>
+                    </View>
+                    <View style={styles.detailRow}>
+                      <Text style={styles.detailTitle}>Phone</Text>
+                      <Text style={styles.detailValue}>{String(selectedItem.phone || 'N/A')}</Text>
+                    </View>
+                    <View style={styles.detailRow}>
+                      <Text style={styles.detailTitle}>License No</Text>
+                      <Text style={styles.detailValue}>{String(selectedItem.licenseNumber || 'N/A')}</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.detailsCard}>
+                    <Text style={styles.detailsLabel}>Vehicle Information</Text>
+                    <View style={styles.detailRow}>
+                      <Text style={styles.detailTitle}>Model</Text>
+                      <Text style={styles.detailValue}>{String(selectedItem.vehicleModel || 'N/A')}</Text>
+                    </View>
+                    <View style={styles.detailRow}>
+                      <Text style={styles.detailTitle}>Plate No</Text>
+                      <Text style={styles.detailValue}>{String(selectedItem.vehicleNumber || 'N/A')}</Text>
                     </View>
                   </View>
 
                   {activeTab === 'Pending' && (
-                    <TouchableOpacity onPress={() => handleApprove(selectedItem)} className="rounded-3xl overflow-hidden mb-4">
-                      <LinearGradient colors={['#10B981', '#059669']} className="py-4 items-center">
-                        <Text className="text-white font-black text-lg">Approve Driver</Text>
+                    <TouchableOpacity onPress={() => handleApprove(selectedItem)} style={styles.modalApproveButton}>
+                      <LinearGradient colors={['#10B981', '#059669']} style={styles.modalGradientButton}>
+                        <Text style={styles.modalApproveText}>Approve Driver</Text>
                       </LinearGradient>
                     </TouchableOpacity>
                   )}
-                  <TouchableOpacity onPress={() => setDetailsModalVisible(false)} className="bg-slate-100 py-4 rounded-3xl items-center">
-                    <Text className="text-slate-600 font-black">Close Details</Text>
+                  <TouchableOpacity onPress={() => setDetailsModalVisible(false)} style={styles.modalCloseButton}>
+                    <Text style={styles.modalCloseText}>Close Details</Text>
                   </TouchableOpacity>
                 </View>
               )}
@@ -312,21 +269,26 @@ const DriverApprovalScreen = ({ navigation }) => {
         </View>
       </Modal>
 
+      {/* Reject Modal */}
       <Modal visible={rejectModalVisible} transparent animationType="slide">
-        <View className="flex-1 bg-black/40 justify-end">
-          <View className="bg-white rounded-t-[40px] p-8 pb-12">
-            <View className="w-16 h-1 bg-slate-200 rounded-full self-center mb-8" />
-            <Text className="text-slate-900 text-2xl font-black mb-2">Rejection Reason</Text>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { height: 'auto' }]}>
+            <View style={styles.modalHandleContainer}>
+              <View style={styles.modalHandle} />
+            </View>
+            <Text style={styles.rejectModalTitle}>Rejection Reason</Text>
             <TextInput
-              className="bg-slate-50 rounded-3xl p-6 text-slate-900 h-32 text-left align-top font-bold border border-slate-100"
+              style={styles.rejectInput}
               placeholder="Reason for rejection..." multiline
               value={rejectionReason} onChangeText={setRejectionReason}
             />
-            <View className="flex-row mt-8 space-x-4">
-              <TouchableOpacity onPress={() => setRejectModalVisible(false)} className="flex-1 py-4 items-center"><Text className="text-slate-400 font-black">Cancel</Text></TouchableOpacity>
-              <TouchableOpacity onPress={handleReject} className="flex-[2] rounded-3xl overflow-hidden">
-                <LinearGradient colors={['#F43F5E', '#E11D48']} className="py-4 items-center">
-                  <Text className="text-white font-black">Confirm Rejection</Text>
+            <View style={styles.rejectActions}>
+              <TouchableOpacity onPress={() => setRejectModalVisible(false)} style={styles.rejectCancelButton}>
+                <Text style={styles.rejectCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleReject} style={styles.rejectConfirmButton}>
+                <LinearGradient colors={['#F43F5E', '#E11D48']} style={styles.rejectConfirmGradient}>
+                  <Text style={styles.rejectConfirmText}>Confirm Rejection</Text>
                 </LinearGradient>
               </TouchableOpacity>
             </View>
@@ -336,5 +298,349 @@ const DriverApprovalScreen = ({ navigation }) => {
     </View>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  header: {
+    paddingHorizontal: 24,
+    paddingTop: Platform.OS === 'ios' ? 60 : 50,
+    backgroundColor: '#fff',
+  },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  backButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  tabsContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#f8fafc',
+    padding: 6,
+    borderRadius: 24,
+    marginBottom: 24,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderRadius: 16,
+  },
+  activeTab: {
+    backgroundColor: '#fff',
+    ...Platform.select({
+      ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4 },
+      android: { elevation: 2 },
+    }),
+  },
+  tabText: {
+    fontSize: 12,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+    color: '#94A3B8',
+  },
+  activeTabText: {
+    color: '#3B82F6',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  listContent: {
+    padding: 24,
+  },
+  card: {
+    backgroundColor: '#fff',
+    borderRadius: 24,
+    padding: 20,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
+    ...Platform.select({
+      ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.05, shadowRadius: 15 },
+      android: { elevation: 4 },
+    }),
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  avatarContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  avatarPending: { backgroundColor: '#eff6ff' },
+  avatarApproved: { backgroundColor: '#ecfdf5' },
+  avatarRejected: { backgroundColor: '#fff1f2' },
+  avatarText: { fontSize: 28 },
+  headerInfo: {
+    flex: 1,
+  },
+  driverName: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  experienceText: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    marginTop: 2,
+  },
+  statusBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  statusBadgePending: { backgroundColor: '#fffbeb' },
+  statusBadgeApproved: { backgroundColor: '#ecfdf5' },
+  statusBadgeRejected: { backgroundColor: '#fff1f2' },
+  statusText: {
+    fontSize: 10,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+  },
+  statusTextPending: { color: '#b45309' },
+  statusTextApproved: { color: '#047857' },
+  statusTextRejected: { color: '#be123c' },
+  cardFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#f1f5f9',
+  },
+  footerItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  footerText: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '700',
+    marginLeft: 8,
+  },
+  cardActions: {
+    flexDirection: 'row',
+    marginTop: 20,
+    gap: 12,
+  },
+  approveButton: {
+    flex: 1,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  gradientButton: {
+    paddingVertical: 12,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  buttonText: {
+    color: '#fff',
+    fontWeight: '900',
+    marginLeft: 8,
+  },
+  rejectButton: {
+    flex: 1,
+    backgroundColor: '#f8fafc',
+    borderRadius: 16,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  rejectButtonText: {
+    color: '#64748B',
+    fontWeight: '900',
+    marginLeft: 8,
+  },
+  emptyContainer: {
+    paddingVertical: 80,
+    alignItems: 'center',
+  },
+  emptyText: {
+    marginTop: 16,
+    fontSize: 18,
+    color: '#94A3B8',
+    fontWeight: '900',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 40,
+    borderTopRightRadius: 40,
+    padding: 32,
+    paddingBottom: 48,
+    maxHeight: '85%',
+  },
+  modalHandleContainer: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  modalHandle: {
+    width: 64,
+    height: 4,
+    backgroundColor: '#f1f5f9',
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 32,
+  },
+  modalHeader: {
+    alignItems: 'center',
+    marginBottom: 32,
+  },
+  modalAvatar: {
+    width: 80,
+    height: 80,
+    backgroundColor: '#eff6ff',
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalAvatarText: { fontSize: 40 },
+  modalTitle: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: '#0F172A',
+    textAlign: 'center',
+  },
+  modalSubtitle: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  detailsCard: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 32,
+    padding: 24,
+    marginBottom: 24,
+  },
+  detailsLabel: {
+    fontSize: 10,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+    color: '#94A3B8',
+    marginBottom: 16,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  detailTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  detailValue: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  modalApproveButton: {
+    borderRadius: 24,
+    overflow: 'hidden',
+    marginBottom: 16,
+  },
+  modalGradientButton: {
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  modalApproveText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  modalCloseButton: {
+    backgroundColor: '#f8fafc',
+    paddingVertical: 16,
+    borderRadius: 24,
+    alignItems: 'center',
+  },
+  modalCloseText: {
+    color: '#64748B',
+    fontWeight: '900',
+  },
+  rejectModalTitle: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: '#0F172A',
+    marginBottom: 16,
+  },
+  rejectInput: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 24,
+    padding: 24,
+    color: '#0F172A',
+    height: 128,
+    textAlignVertical: 'top',
+    fontWeight: '700',
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
+  },
+  rejectActions: {
+    flexDirection: 'row',
+    marginTop: 32,
+    gap: 16,
+  },
+  rejectCancelButton: {
+    flex: 1,
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  rejectCancelText: {
+    color: '#94A3B8',
+    fontWeight: '900',
+  },
+  rejectConfirmButton: {
+    flex: 2,
+    borderRadius: 24,
+    overflow: 'hidden',
+  },
+  rejectConfirmGradient: {
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  rejectConfirmText: {
+    color: '#fff',
+    fontWeight: '900',
+  }
+});
 
 export default DriverApprovalScreen;

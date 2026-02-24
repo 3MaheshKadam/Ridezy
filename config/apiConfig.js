@@ -1,5 +1,15 @@
-export const BASE_URL = 'http://192.168.1.21:3000';
+// Use EXPO_PUBLIC_API_BASE_URL for environment-specific base URL
+// Fallback to local IP if not defined
+// In Expo, variables prefixed with EXPO_PUBLIC_ are automatically available at build time
+export const BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL;
+
+if (!BASE_URL) {
+    console.warn('Warning: EXPO_PUBLIC_API_BASE_URL is not defined in your .env file.');
+}
+
 export const API_BASE_URL = `${BASE_URL}/api`;
+
+
 
 export const endpoints = {
     auth: {

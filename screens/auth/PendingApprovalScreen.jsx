@@ -12,54 +12,35 @@ const PendingApprovalScreen = ({ navigation }) => {
     const checkStatus = async () => {
         setIsChecking(true);
         try {
-            // We need an endpoint to get the current user's profile/status
-            // Assuming we can use a profile endpoint or refreshing the token logic
-            // For now, let's assume we have an endpoint 'auth/me' or similar, 
-            // OR we can just hit the driver stats endpoint if it returns 403 for unapproved? 
-            // Actually, let's reuse valid endpoints. 'drivers/stats' might work if it returns the user object.
-            // Or better, 'auth/profile' if it exists. 
+            const response = await get(endpoints.auth.me);
 
-            // Let's rely on the user object in context first? No, we need to fetch fresh data.
-            // If UserContext doesn't have a refresh method that hits the API, we need one.
-            // Let's assume we can fetch '/api/auth/me' or similar. 
-            // Checking existing endpoints... `endpoints` might have something.
-            // If not, we might need to add a simple 'get current user status' endpoint or use an existing one.
+            if (response && response.user) {
+                const refreshedUser = response.user;
+                updateUser(refreshedUser); // Update context with fresh data
 
-            // Temporary strategy: Try to login again silently? No, that requires password.
-            // Let's try fetching the profile.
-
-            // WORKAROUND: If we don't have a specific "get my status" endpoint, 
-            // we can try to fetch a protected resource. If it works and returns specific data...
-            // Actually, let's look at `DriverProfileScreen`. It fetches `endpoints.drivers.stats`.
-
-            const response = await get(endpoints.drivers.stats);
-
-            if (response && response.driverProfile) {
-                // Determine status from the response if possible?
-                // The stats endpoint usually returns the driver profile.
-                // We also need the USER status (ACTIVE vs PENDING_APPROVAL).
-                // The `drivers/stats` endpoint might need to return the User status too.
-
-                // Let's try to infer or if we can't get it, we might need a better endpoint.
-                // BUT, if the admin approved, the User.status would be ACTIVE.
-                // Does `drivers/stats` return `user.status`? 
-
-                // If we can't easily check, list ask the user to logout and login again.
-                // But a 'Refresh' button is nicer.
-
-                // Simple approach for now:
-                Alert.alert(
-                    "Status Update",
-                    "Please log out and log back in to see if your account has been approved.",
-                    [{ text: "OK" }]
-                );
+                if (refreshedUser.status === 'ACTIVE') {
+                    Alert.alert(
+                        "Congratulations!",
+                        "Your account has been approved. Welcome to Ridezy!",
+                        [{ text: "Get Started", onPress: () => navigation.replace('DriverTabs') }]
+                    );
+                } else if (refreshedUser.status === 'REJECTED') {
+                    Alert.alert(
+                        "Application Update",
+                        "Your application has been rejected. Please contact support for more information."
+                    );
+                } else {
+                    Alert.alert(
+                        "Status Check",
+                        "Your application is still under review. We'll notify you once it's approved!"
+                    );
+                }
             }
-
         } catch (error) {
             console.log("Check status error", error);
             Alert.alert(
                 "Status Check",
-                "Account is still pending approval or an error occurred."
+                "We couldn't reach the server. Please try again later."
             );
         } finally {
             setIsChecking(false);

@@ -13,6 +13,8 @@ import {
     ActivityIndicator,
     Image,
     Linking,
+    StyleSheet,
+    Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { get, post } from '../../lib/api';
@@ -130,9 +132,10 @@ const CarOwnerApprovalScreen = ({ navigation }) => {
     };
 
     const handleApprove = async (item) => {
+        if (!item || !item.id) return;
         Alert.alert(
             'Approve Vehicle',
-            `Are you sure you want to approve ${item.vehicleModel} (${item.vehicleNumber})?`,
+            `Are you sure you want to approve ${item.vehicleModel || ''} (${item.vehicleNumber || ''})?`,
             [
                 { text: 'Cancel', style: 'cancel' },
                 {
@@ -157,7 +160,7 @@ const CarOwnerApprovalScreen = ({ navigation }) => {
     };
 
     const handleReject = async () => {
-        if (!rejectionReason.trim()) {
+        if (!selectedItem || !rejectionReason.trim()) {
             Alert.alert('Required', 'Please provide a reason for rejection.');
             return;
         }
@@ -180,53 +183,56 @@ const CarOwnerApprovalScreen = ({ navigation }) => {
             Alert.alert('Error', 'Failed to reject vehicle.');
         }
     };
+
     const renderCard = (item) => {
-        try {
-            return (
-                <TouchableOpacity
-                    key={item.id ? String(item.id) : Math.random().toString()}
-                    onPress={() => openDetailsModal(item)}
-                    className="bg-white rounded-2xl p-4 mb-4 shadow-sm shadow-black/5"
-                    activeOpacity={0.8}
-                >
-                    <View className="flex-row items-center justify-between mb-2">
-                        <Text className="text-primary text-lg font-bold">{String(item.ownerName || 'Unknown Owner')}</Text>
-                        <View className={`px-2 py-1 rounded-full ${item.status === 'PENDING' ? 'bg-yellow-50' :
-                            (item.status === 'APPROVED' || item.status === 'ACTIVE') ? 'bg-green-50' : 'bg-red-50'
-                            }`}>
-                            <Text className={`text-xs font-bold ${item.status === 'PENDING' ? 'text-yellow-600' :
-                                (item.status === 'APPROVED' || item.status === 'ACTIVE') ? 'text-green-600' : 'text-red-600'
-                                }`}>{String(item.status || 'UNKNOWN')}</Text>
-                        </View>
-                    </View>
+        if (!item) return null;
+        const status = String(item.status || 'UNKNOWN');
+        const isPending = status === 'PENDING' || status === 'PENDING_APPROVAL';
+        const isApproved = status === 'APPROVED' || status === 'ACTIVE';
 
-                    <View className="mb-2">
-                        <Text className="text-secondary text-base">{String(item.vehicleMake || '')} {String(item.vehicleModel || '')}</Text>
-                        <Text className="text-secondary text-sm font-semibold">{String(item.vehicleNumber || 'N/A')}</Text>
+        return (
+            <TouchableOpacity
+                key={item.id ? String(item.id) : Math.random().toString()}
+                onPress={() => openDetailsModal(item)}
+                style={styles.card}
+                activeOpacity={0.8}
+            >
+                <View style={styles.cardHeader}>
+                    <Text style={styles.ownerName}>{String(item.ownerName || 'Unknown Owner')}</Text>
+                    <View style={[
+                        styles.statusBadge,
+                        isPending ? styles.statusBadgePending : isApproved ? styles.statusBadgeApproved : styles.statusBadgeRejected
+                    ]}>
+                        <Text style={[
+                            styles.statusText,
+                            isPending ? styles.statusTextPending : isApproved ? styles.statusTextApproved : styles.statusTextRejected
+                        ]}>{status}</Text>
                     </View>
+                </View>
 
-                    {(item.status === 'PENDING' || item.status === 'PENDING_APPROVAL') && (
-                        <View className="flex-row mt-2 space-x-3">
-                            <TouchableOpacity
-                                onPress={(e) => { e.stopPropagation(); handleApprove(item); }}
-                                className="flex-1 bg-accent/10 rounded-xl py-2 flex-row justify-center items-center"
-                            >
-                                <Text className="text-accent font-semibold">Approve</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                onPress={(e) => { e.stopPropagation(); openRejectModal(item); }}
-                                className="flex-1 bg-red-50 rounded-xl py-2 flex-row justify-center items-center"
-                            >
-                                <Text className="text-red-600 font-semibold">Reject</Text>
-                            </TouchableOpacity>
-                        </View>
-                    )}
-                </TouchableOpacity>
-            );
-        } catch (error) {
-            console.error('Error rendering car owner card:', error);
-            return null;
-        }
+                <View style={styles.vehicleInfo}>
+                    <Text style={styles.vehicleModel}>{String(item.vehicleMake || '')} {String(item.vehicleModel || '')}</Text>
+                    <Text style={styles.vehicleNumber}>{String(item.vehicleNumber || 'N/A')}</Text>
+                </View>
+
+                {isPending && (
+                    <View style={styles.cardActions}>
+                        <TouchableOpacity
+                            onPress={(e) => { e.stopPropagation(); handleApprove(item); }}
+                            style={[styles.actionButton, styles.approveButton]}
+                        >
+                            <Text style={styles.approveButtonText}>Approve</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            onPress={(e) => { e.stopPropagation(); openRejectModal(item); }}
+                            style={[styles.actionButton, styles.rejectButton]}
+                        >
+                            <Text style={styles.rejectButtonText}>Reject</Text>
+                        </TouchableOpacity>
+                    </View>
+                )}
+            </TouchableOpacity>
+        );
     };
 
     const getCurrentList = () => {
@@ -239,43 +245,44 @@ const CarOwnerApprovalScreen = ({ navigation }) => {
     };
 
     return (
-        <View className="flex-1 bg-gray-50">
+        <View style={styles.container}>
             <StatusBar barStyle="dark-content" backgroundColor="#f9fafb" />
 
             {/* Header */}
-            <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideUpAnim }] }} className="bg-white pt-12 pb-4 px-6 shadow-sm shadow-black/5">
-                <View className="flex-row items-center mb-4">
-                    <TouchableOpacity onPress={() => navigation.goBack()} className="mr-4">
+            <Animated.View style={[styles.header, { opacity: fadeAnim, transform: [{ translateY: slideUpAnim }] }]}>
+                <View style={styles.headerTitleRow}>
+                    <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
                         <Ionicons name="chevron-back" size={24} color="#1A1B23" />
                     </TouchableOpacity>
-                    <Text className="text-primary text-xl font-bold">Car Owner Approvals</Text>
+                    <Text style={styles.headerTitle}>Car Owner Approvals</Text>
                 </View>
 
                 {/* Tabs */}
-                <View className="flex-row bg-gray-100 rounded-xl p-1">
+                <View style={styles.tabsContainer}>
                     {['pending', 'approved', 'rejected'].map(tab => (
                         <TouchableOpacity
                             key={tab}
                             onPress={() => setActiveTab(tab)}
-                            className={`flex-1 py-2 rounded-lg items-center ${activeTab === tab ? 'bg-white shadow-sm' : ''}`}
+                            style={[styles.tab, activeTab === tab && styles.activeTab]}
                         >
-                            <Text className={`capitalize font-semibold ${activeTab === tab ? 'text-primary' : 'text-secondary'}`}>{tab}</Text>
+                            <Text style={[styles.tabText, activeTab === tab && styles.activeTabText]}>{tab}</Text>
                         </TouchableOpacity>
                     ))}
                 </View>
             </Animated.View>
 
             {isLoading ? (
-                <View className="flex-1 justify-center items-center">
+                <View style={styles.centerContainer}>
                     <ActivityIndicator size="large" color="#00C851" />
-                    <Text className="text-secondary mt-4">Loading approvals...</Text>
+                    <Text style={styles.loadingText}>Loading approvals...</Text>
                 </View>
             ) : (
-                <ScrollView className="flex-1 p-4">
+                <ScrollView contentContainerStyle={styles.scrollContent}>
                     {getCurrentList().map(renderCard)}
                     {getCurrentList().length === 0 && (
-                        <View className="items-center mt-10">
-                            <Text className="text-secondary">No items found.</Text>
+                        <View style={styles.emptyContainer}>
+                            <Ionicons name="folder-open-outline" size={48} color="#94A3B8" />
+                            <Text style={styles.emptyText}>No items found.</Text>
                         </View>
                     )}
                 </ScrollView>
@@ -283,57 +290,57 @@ const CarOwnerApprovalScreen = ({ navigation }) => {
 
             {/* Details Modal */}
             <Modal visible={showDetailsModal} transparent animationType="none" onRequestClose={closeDetailsModal}>
-                <View className="flex-1 bg-black/50 justify-end">
-                    <Animated.View style={{ transform: [{ translateY: modalSlideAnim }] }} className="bg-white rounded-t-3xl p-6 h-[80%]">
-                        <View className="items-center mb-4">
-                            <View className="w-12 h-1 bg-gray-300 rounded-full" />
+                <View style={styles.modalOverlay}>
+                    <Animated.View style={[styles.modalContent, { transform: [{ translateY: modalSlideAnim }] }]}>
+                        <View style={styles.modalHandleContainer}>
+                            <View style={styles.modalHandle} />
                         </View>
                         {selectedItem && (
-                            <ScrollView>
-                                <Text className="text-2xl font-bold text-primary mb-4">{selectedItem.vehicleMake} {selectedItem.vehicleModel}</Text>
+                            <ScrollView showsVerticalScrollIndicator={false}>
+                                <Text style={styles.modalTitle}>{selectedItem.vehicleMake} {selectedItem.vehicleModel}</Text>
 
-                                <View className="bg-gray-50 p-4 rounded-xl mb-4">
-                                    <Text className="text-secondary text-sm mb-1">Owner Name</Text>
-                                    <Text className="text-primary text-lg font-semibold">{selectedItem.ownerName}</Text>
+                                <View style={styles.detailCard}>
+                                    <Text style={styles.detailLabel}>Owner Name</Text>
+                                    <Text style={styles.detailValue}>{selectedItem.ownerName}</Text>
                                 </View>
 
-                                <View className="bg-gray-50 p-4 rounded-xl mb-4">
-                                    <Text className="text-secondary text-sm mb-1">Vehicle Number</Text>
-                                    <Text className="text-primary text-lg font-semibold">{selectedItem.vehicleNumber}</Text>
+                                <View style={styles.detailCard}>
+                                    <Text style={styles.detailLabel}>Vehicle Number</Text>
+                                    <Text style={styles.detailValue}>{selectedItem.vehicleNumber}</Text>
                                 </View>
 
-                                <View className="bg-gray-50 p-4 rounded-xl mb-4">
-                                    <Text className="text-secondary text-sm mb-1">Documents</Text>
-                                    <View className="flex-row justify-between mt-2">
+                                <View style={styles.detailCard}>
+                                    <Text style={styles.detailLabel}>Documents</Text>
+                                    <View style={styles.documentRow}>
                                         {selectedItem.rcDocumentUrl ? (
                                             <TouchableOpacity
                                                 onPress={() => Linking.openURL(selectedItem.rcDocumentUrl)}
-                                                className="flex-row items-center"
+                                                style={styles.documentLink}
                                             >
                                                 <Ionicons name="document-text" size={20} color="#00C851" />
-                                                <Text className="ml-2 text-primary font-medium">RC Document</Text>
+                                                <Text style={styles.documentLinkText}>RC Document</Text>
                                             </TouchableOpacity>
-                                        ) : <Text className="text-gray-400">No RC</Text>}
+                                        ) : <Text style={styles.documentMissingText}>No RC</Text>}
 
                                         {selectedItem.insuranceUrl ? (
                                             <TouchableOpacity
                                                 onPress={() => Linking.openURL(selectedItem.insuranceUrl)}
-                                                className="flex-row items-center"
+                                                style={styles.documentLink}
                                             >
                                                 <Ionicons name="shield-checkmark" size={20} color="#00C851" />
-                                                <Text className="ml-2 text-primary font-medium">Insurance</Text>
+                                                <Text style={styles.documentLinkText}>Insurance</Text>
                                             </TouchableOpacity>
-                                        ) : <Text className="text-gray-400">No Insurance</Text>}
+                                        ) : <Text style={styles.documentMissingText}>No Insurance</Text>}
                                     </View>
                                 </View>
 
                                 {(selectedItem.status === 'PENDING' || selectedItem.status === 'PENDING_APPROVAL') && (
-                                    <TouchableOpacity onPress={() => handleApprove(selectedItem)} className="bg-accent p-4 rounded-xl items-center mt-4">
-                                        <Text className="text-white font-bold text-lg">Approve</Text>
+                                    <TouchableOpacity onPress={() => handleApprove(selectedItem)} style={styles.modalApproveButton}>
+                                        <Text style={styles.modalApproveButtonText}>Approve</Text>
                                     </TouchableOpacity>
                                 )}
-                                <TouchableOpacity onPress={closeDetailsModal} className="bg-gray-200 p-4 rounded-xl items-center mt-4">
-                                    <Text className="text-primary font-bold">Close</Text>
+                                <TouchableOpacity onPress={closeDetailsModal} style={styles.modalCloseButton}>
+                                    <Text style={styles.modalCloseButtonText}>Close</Text>
                                 </TouchableOpacity>
                             </ScrollView>
                         )}
@@ -343,21 +350,21 @@ const CarOwnerApprovalScreen = ({ navigation }) => {
 
             {/* Reject Modal */}
             <Modal visible={showRejectModal} transparent animationType="none" onRequestClose={closeRejectModal}>
-                <View className="flex-1 bg-black/50 justify-end">
-                    <Animated.View style={{ transform: [{ translateY: modalSlideAnim }] }} className="bg-white rounded-t-3xl p-6 h-[50%]">
-                        <Text className="text-xl font-bold text-red-600 mb-4">Reject Registration</Text>
+                <View style={styles.modalOverlay}>
+                    <Animated.View style={[styles.modalContent, { height: '50%', transform: [{ translateY: modalSlideAnim }] }]}>
+                        <Text style={styles.rejectModalTitle}>Reject Registration</Text>
                         <TextInput
                             value={rejectionReason}
                             onChangeText={setRejectionReason}
                             placeholder="Reason for rejection..."
                             multiline
-                            className="bg-gray-50 p-4 rounded-xl h-32 text-top mb-4 border border-gray-200"
+                            style={styles.rejectTextInput}
                         />
-                        <TouchableOpacity onPress={handleReject} className="bg-red-500 p-4 rounded-xl items-center">
-                            <Text className="text-white font-bold">Confirm Rejection</Text>
+                        <TouchableOpacity onPress={handleReject} style={styles.confirmRejectButton}>
+                            <Text style={styles.confirmRejectButtonText}>Confirm Rejection</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity onPress={closeRejectModal} className="mt-4 items-center">
-                            <Text className="text-secondary font-medium">Cancel</Text>
+                        <TouchableOpacity onPress={closeRejectModal} style={styles.cancelRejectButton}>
+                            <Text style={styles.cancelRejectButtonText}>Cancel</Text>
                         </TouchableOpacity>
                     </Animated.View>
                 </View>
@@ -365,5 +372,295 @@ const CarOwnerApprovalScreen = ({ navigation }) => {
         </View>
     );
 };
+
+const styles = StyleSheet.create({
+    container: {
+        flex: 1,
+        bg: '#f9fafb',
+    },
+    header: {
+        backgroundColor: '#fff',
+        paddingTop: Platform.OS === 'ios' ? 60 : 50,
+        paddingBottom: 15,
+        paddingHorizontal: 20,
+        borderBottomWidth: 1,
+        borderBottomColor: '#f1f5f9',
+    },
+    headerTitleRow: {
+        flexDirection: 'row',
+        itemsCenter: 'center',
+        marginBottom: 20,
+    },
+    backButton: {
+        marginRight: 15,
+    },
+    headerTitle: {
+        fontSize: 22,
+        fontWeight: 'bold',
+        color: '#1e293b',
+    },
+    tabsContainer: {
+        flexDirection: 'row',
+        backgroundColor: '#f1f5f9',
+        borderRadius: 12,
+        padding: 4,
+    },
+    tab: {
+        flex: 1,
+        paddingVertical: 10,
+        alignItems: 'center',
+        borderRadius: 10,
+    },
+    activeTab: {
+        backgroundColor: '#fff',
+        ...Platform.select({
+            ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4 },
+            android: { elevation: 2 },
+        }),
+    },
+    tabText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#64748b',
+        textTransform: 'capitalize',
+    },
+    activeTabText: {
+        color: '#0f172a',
+    },
+    centerContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    loadingText: {
+        marginTop: 15,
+        color: '#64748b',
+        fontSize: 14,
+    },
+    scrollContent: {
+        padding: 20,
+    },
+    card: {
+        backgroundColor: '#fff',
+        borderRadius: 20,
+        padding: 16,
+        marginBottom: 16,
+        ...Platform.select({
+            ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 10 },
+            android: { elevation: 3 },
+        }),
+    },
+    cardHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 12,
+    },
+    ownerName: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: '#0f172a',
+    },
+    statusBadge: {
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 12,
+    },
+    statusBadgePending: {
+        bg: '#fff7ed',
+    },
+    statusBadgeApproved: {
+        bg: '#f0fdf4',
+    },
+    statusBadgeRejected: {
+        bg: '#fef2f2',
+    },
+    statusText: {
+        fontSize: 10,
+        fontWeight: 'bold',
+        textTransform: 'uppercase',
+    },
+    statusTextPending: {
+        color: '#f59e0b',
+    },
+    statusTextApproved: {
+        color: '#10b981',
+    },
+    statusTextRejected: {
+        color: '#ef4444',
+    },
+    vehicleInfo: {
+        marginBottom: 15,
+    },
+    vehicleModel: {
+        fontSize: 15,
+        color: '#334155',
+        marginBottom: 2,
+    },
+    vehicleNumber: {
+        fontSize: 13,
+        fontWeight: '600',
+        color: '#64748b',
+    },
+    cardActions: {
+        flexDirection: 'row',
+        gap: 12,
+    },
+    actionButton: {
+        flex: 1,
+        paddingVertical: 10,
+        borderRadius: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    approveButton: {
+        backgroundColor: '#f0fdf4',
+    },
+    approveButtonText: {
+        color: '#10b981',
+        fontWeight: '700',
+    },
+    rejectButton: {
+        backgroundColor: '#fef2f2',
+    },
+    rejectButtonText: {
+        color: '#ef4444',
+        fontWeight: '700',
+    },
+    emptyContainer: {
+        alignItems: 'center',
+        paddingVertical: 60,
+    },
+    emptyText: {
+        marginTop: 15,
+        color: '#94a3b8',
+        fontSize: 16,
+        fontWeight: '600',
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'end',
+    },
+    modalContent: {
+        backgroundColor: '#fff',
+        borderTopLeftRadius: 30,
+        borderTopRightRadius: 30,
+        padding: 24,
+        height: '80%',
+    },
+    modalHandleContainer: {
+        alignItems: 'center',
+        marginBottom: 20,
+    },
+    modalHandle: {
+        width: 40,
+        height: 5,
+        backgroundColor: '#e2e8f0',
+        borderRadius: 3,
+    },
+    modalTitle: {
+        fontSize: 24,
+        fontWeight: 'bold',
+        color: '#0f172a',
+        marginBottom: 20,
+    },
+    detailCard: {
+        backgroundColor: '#f8fafc',
+        padding: 16,
+        borderRadius: 16,
+        marginBottom: 12,
+    },
+    detailLabel: {
+        fontSize: 12,
+        color: '#64748b',
+        fontWeight: '600',
+        marginBottom: 4,
+        textTransform: 'uppercase',
+    },
+    detailValue: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        color: '#0f172a',
+    },
+    documentRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginTop: 8,
+    },
+    documentLink: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    documentLinkText: {
+        color: '#00C851',
+        fontWeight: '600',
+        fontSize: 14,
+    },
+    documentMissingText: {
+        color: '#94a3b8',
+        fontSize: 13,
+    },
+    modalApproveButton: {
+        backgroundColor: '#00C851',
+        padding: 16,
+        borderRadius: 16,
+        alignItems: 'center',
+        marginTop: 20,
+    },
+    modalApproveButtonText: {
+        color: '#fff',
+        fontSize: 18,
+        fontWeight: 'bold',
+    },
+    modalCloseButton: {
+        backgroundColor: '#f1f5f9',
+        padding: 16,
+        borderRadius: 16,
+        alignItems: 'center',
+        marginTop: 12,
+    },
+    modalCloseButtonText: {
+        color: '#475569',
+        fontWeight: 'bold',
+    },
+    rejectModalTitle: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        color: '#ef4444',
+        marginBottom: 16,
+    },
+    rejectTextInput: {
+        backgroundColor: '#f8fafc',
+        padding: 16,
+        borderRadius: 16,
+        height: 120,
+        textAlignVertical: 'top',
+        borderWidth: 1,
+        borderColor: '#e2e8f0',
+        color: '#0f172a',
+        fontWeight: '500',
+    },
+    confirmRejectButton: {
+        backgroundColor: '#ef4444',
+        padding: 16,
+        borderRadius: 16,
+        alignItems: 'center',
+        marginTop: 20,
+    },
+    confirmRejectButtonText: {
+        color: '#fff',
+        fontWeight: 'bold',
+    },
+    cancelRejectButton: {
+        marginTop: 15,
+        alignItems: 'center',
+    },
+    cancelRejectButtonText: {
+        color: '#64748b',
+        fontWeight: '600',
+    }
+});
 
 export default CarOwnerApprovalScreen;
