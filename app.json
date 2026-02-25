@@ -1,6 +1,6 @@
 {
   "expo": {
-    "jsEngine": "jsc",
+    "jsEngine": "hermes",
     "name": "my-expo-app",
     "slug": "my-expo-app",
     "version": "1.0.0",
@@ -12,7 +12,14 @@
     },
     "plugins": [
       "expo-web-browser",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "@stripe/stripe-react-native",
+        {
+          "merchantIdentifier": "merchant.com.harshalladukar.ridezy",
+          "bundleServiceIdentifier": "com.harshalladukar.ridezy"
+        }
+      ]
     ],
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -29,12 +36,11 @@
       "supportsTablet": true
     },
     "android": {
-      "usesCleartextTraffic": true,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.gaikwadsameer422.myexpoapp",
+      "package": "com.harshalladukar.ridezy",
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION"
@@ -42,8 +48,9 @@
     },
     "extra": {
       "eas": {
-        "projectId": "fc13ef26-e68a-4d1a-b5a4-dc270fffc297"
+        "projectId": "0be97eb3-add1-4b28-a593-51a34933eaf3"
       }
-    }
+    },
+    "owner": "harshalladukar"
   }
 }
