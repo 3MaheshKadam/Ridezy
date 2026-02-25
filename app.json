@@ -46,11 +46,11 @@
         "ACCESS_COARSE_LOCATION"
       ]
     },
+    "owner": "maheshkadam",
     "extra": {
       "eas": {
-        "projectId": "0be97eb3-add1-4b28-a593-51a34933eaf3"
+        "projectId": "aadb73ea-b5d2-4416-888f-1c45257cd319"
       }
-    },
-    "owner": "harshalladukar"
+    }
   }
 }
