@@ -12,7 +12,9 @@ import {
   Switch,
   ActivityIndicator,
   Image,
+  Modal,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { useUser } from '../../context/UserContext';
@@ -32,6 +34,10 @@ const DriverDashboardScreen = ({ navigation }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState(null);
+  const [acceptedTrip, setAcceptedTrip] = useState(null); // Trip assigned by owner
+  const [tripPopupVisible, setTripPopupVisible] = useState(false);
+  const tripPollRef = useRef(null);
+  const lastAcceptedTripId = useRef(null); // Avoid re-triggering same trip popup
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideUpAnim = useRef(new Animated.Value(30)).current;
@@ -61,6 +67,74 @@ const DriverDashboardScreen = ({ navigation }) => {
     vehicleName: user?.vehicle?.model || 'Vehicle',
     verificationStatus: user?.status === 'active' ? 'verified' : 'pending',
   };
+
+  // 🔄 Robust Polling for Accepted Trips
+  useEffect(() => {
+    let interval = null;
+
+    if (isOnline) {
+      console.log('Driver is ONLINE - Starting trip poll loop...');
+
+      const poll = async () => {
+        try {
+          const response = await get(endpoints.drivers.myAcceptedTrip);
+          const trip = response?.trip;
+
+          if (trip && trip._id) {
+            console.log('Poll Found Trip:', trip._id, 'Status:', trip.status);
+
+            if (lastAcceptedTripId.current !== trip._id) {
+              lastAcceptedTripId.current = trip._id;
+              setAcceptedTrip(trip);
+              setTripPopupVisible(true);
+              console.log('New trip! Showing popup.');
+            }
+          } else {
+            // Reset tracker if no trip found (important for re-hiring)
+            if (lastAcceptedTripId.current) {
+              console.log('No active trip found. Resetting tracker.');
+              lastAcceptedTripId.current = null;
+              setAcceptedTrip(null);
+            }
+          }
+        } catch (error) {
+          console.log('Trip poll error:', error);
+        }
+      };
+
+      // Initial check
+      poll();
+
+      // Secondary loop
+      interval = setInterval(poll, 5000);
+    } else {
+      console.log('Driver is OFFLINE - Stopping poll loop.');
+    }
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isOnline]);
+
+  // Also re-check whenever this screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      if (isOnline) {
+        // We don't need to start a new interval here, the useEffect handles it.
+        // But a quick immediate check is good when returning to dashboard.
+        console.log('Dashboard Focus - Immediate trip check...');
+        const check = async () => {
+          const res = await get(endpoints.drivers.myAcceptedTrip);
+          if (res?.trip && lastAcceptedTripId.current !== res.trip._id) {
+            lastAcceptedTripId.current = res.trip._id;
+            setAcceptedTrip(res.trip);
+            setTripPopupVisible(true);
+          }
+        };
+        check();
+      }
+    }, [isOnline])
+  );
 
   useEffect(() => {
     fetchStats();
@@ -655,44 +729,121 @@ const DriverDashboardScreen = ({ navigation }) => {
         </Animated.View>
       </ScrollView>
 
-      {/* Driver Notification Popup (Dashboard Only) */}
-      {popupNotification && (
-        <View className="absolute top-0 left-0 right-0 bottom-0 z-50 flex items-center justify-center p-6 bg-black/40">
-          <View className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl items-center">
-            <View className="w-16 h-16 bg-green-100 rounded-full items-center justify-center mb-4">
-              <Ionicons name="gift" size={32} color="#166534" />
+
+      {/* ✅ Accepted Trip Modal — fires when Owner selects this driver */}
+      <Modal
+        visible={tripPopupVisible && !!acceptedTrip}
+        transparent={true}
+        animationType="fade"
+        statusBarTranslucent={true}
+        onRequestClose={() => setTripPopupVisible(false)}
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+          <View style={{ backgroundColor: 'white', borderRadius: 24, padding: 24, width: '100%', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 20, elevation: 20 }}>
+
+            {/* Icon */}
+            <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: '#DCFCE7', justifyContent: 'center', alignItems: 'center', alignSelf: 'center', marginBottom: 16 }}>
+              <Ionicons name="checkmark-circle" size={44} color="#16a34a" />
             </View>
 
-            <Text className="text-xl font-bold text-center text-gray-900 mb-2">{popupNotification.title}</Text>
-            <Text className="text-gray-500 text-center mb-6">{popupNotification.message}</Text>
+            <Text style={{ fontSize: 22, fontWeight: 'bold', textAlign: 'center', color: '#111827', marginBottom: 4 }}>You're Hired! 🎉</Text>
+            <Text style={{ color: '#6B7280', textAlign: 'center', marginBottom: 20 }}>
+              {acceptedTrip?.ownerName || 'An owner'} selected you for their trip.
+            </Text>
 
+            {/* Trip route */}
+            <View style={{ backgroundColor: '#F9FAFB', borderRadius: 16, padding: 16, marginBottom: 20 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: 12 }}>
+                <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: '#22C55E', marginTop: 3, marginRight: 12 }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 10, color: '#9CA3AF', fontWeight: '700', letterSpacing: 1 }}>PICKUP</Text>
+                  <Text style={{ color: '#1F2937', fontWeight: '700', fontSize: 14 }}>{acceptedTrip?.pickupLocation || 'See map'}</Text>
+                </View>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+                <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: '#EF4444', marginTop: 3, marginRight: 12 }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 10, color: '#9CA3AF', fontWeight: '700', letterSpacing: 1 }}>DROP-OFF</Text>
+                  <Text style={{ color: '#1F2937', fontWeight: '700', fontSize: 14 }}>{acceptedTrip?.dropLocation || 'See map'}</Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Fare */}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#F0FDF4', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12, marginBottom: 20 }}>
+              <Text style={{ color: '#166534', fontWeight: '600', fontSize: 15 }}>Your Earnings</Text>
+              <Text style={{ color: '#15803D', fontWeight: 'bold', fontSize: 20 }}>₹{acceptedTrip?.price || 0}</Text>
+            </View>
+
+            {/* CTA */}
+            <TouchableOpacity
+              onPress={() => {
+                setTripPopupVisible(false);
+                navigation.navigate('DriverTripTracking', {
+                  tripId: acceptedTrip._id,
+                  tripDetails: {
+                    pickupLocation: acceptedTrip.pickupLocation,
+                    dropoffLocation: acceptedTrip.dropLocation,
+                    pickupCoordinates: acceptedTrip.pickupCoords,
+                    dropoffCoordinates: acceptedTrip.dropoffCoords,
+                    estimatedPrice: acceptedTrip.price,
+                    status: acceptedTrip.status,
+                  }
+                });
+              }}
+              style={{ backgroundColor: '#16A34A', borderRadius: 16, paddingVertical: 16, alignItems: 'center', marginBottom: 12 }}
+            >
+              <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 16 }}>Start Navigation →</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => setTripPopupVisible(false)}
+              style={{ alignItems: 'center', paddingVertical: 8 }}
+            >
+              <Text style={{ color: '#9CA3AF', fontWeight: '500' }}>Dismiss (check later in My Trips)</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Legacy Notification Modal */}
+      <Modal
+        visible={!!popupNotification}
+        transparent={true}
+        animationType="fade"
+        statusBarTranslucent={true}
+        onRequestClose={() => setPopupNotification(null)}
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+          <View style={{ backgroundColor: 'white', borderRadius: 24, padding: 24, width: '100%', alignItems: 'center' }}>
+            <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: '#DCFCE7', justifyContent: 'center', alignItems: 'center', marginBottom: 16 }}>
+              <Ionicons name="gift" size={32} color="#166534" />
+            </View>
+            <Text style={{ fontSize: 18, fontWeight: 'bold', textAlign: 'center', color: '#111827', marginBottom: 8 }}>{popupNotification?.title}</Text>
+            <Text style={{ color: '#6B7280', textAlign: 'center', marginBottom: 24 }}>{popupNotification?.message}</Text>
             <TouchableOpacity
               onPress={() => {
                 markAsRead(popupNotification._id);
                 setPopupNotification(null);
-
                 if (popupNotification.actionType === 'track_trip' && popupNotification.data?.tripId) {
                   navigation.navigate('DriverTripTracking', { tripId: popupNotification.data.tripId });
                 } else {
                   navigation.navigate('DriverTrips');
                 }
               }}
-              className="bg-green-600 w-full py-3.5 rounded-xl items-center shadow-lg shadow-green-200"
+              style={{ backgroundColor: '#16A34A', width: '100%', paddingVertical: 14, borderRadius: 12, alignItems: 'center', marginBottom: 12 }}
             >
-              <Text className="text-white font-bold text-lg">
-                {popupNotification.actionType === 'track_trip' ? 'View Trip' : 'Detailed View'}
+              <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 16 }}>
+                {popupNotification?.actionType === 'track_trip' ? 'View Trip' : 'Detailed View'}
               </Text>
             </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() => setPopupNotification(null)}
-              className="mt-4"
-            >
-              <Text className="text-gray-400 font-medium">Dismiss</Text>
+            <TouchableOpacity onPress={() => setPopupNotification(null)} style={{ paddingVertical: 8 }}>
+              <Text style={{ color: '#9CA3AF', fontWeight: '500' }}>Dismiss</Text>
             </TouchableOpacity>
           </View>
         </View>
-      )}
+      </Modal>
+
     </View>
   );
 };

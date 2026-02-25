@@ -15,6 +15,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
 import { get, post } from '../../lib/api';
 import { endpoints } from '../../config/apiConfig';
+import { calculateDistance } from '../../lib/locationService';
 import { useFocusEffect } from '@react-navigation/native';
 
 const { width, height } = Dimensions.get('window');
@@ -71,7 +72,9 @@ const DriverRequestFeedScreen = ({ navigation }) => {
                 time: new Date(t.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 vehicleType: t.vehicleTypeRequested,
                 passengers: t.passengers,
-                distance: '5 km' // TODO: Calculate or fetch distance
+                distance: (t.pickupCoords && t.dropoffCoords)
+                    ? `${calculateDistance(t.pickupCoords.lat, t.pickupCoords.lng, t.dropoffCoords.lat, t.dropoffCoords.lng).toFixed(1)} km`
+                    : null
             }));
 
             setRequests(trips);

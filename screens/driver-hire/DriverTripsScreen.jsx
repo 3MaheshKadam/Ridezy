@@ -93,7 +93,7 @@ const DriverTripsScreen = ({ navigation }) => {
       // 3. Fetch My History
       let historyTrips = [];
       try {
-        const historyRes = await get(endpoints.trips.history);
+        const historyRes = await get(endpoints.drivers.trips);
         if (historyRes?.trips) {
           historyTrips = historyRes.trips.map(t => ({
             ...t,

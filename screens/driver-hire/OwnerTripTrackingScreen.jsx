@@ -623,7 +623,7 @@ const OwnerTripTrackingScreen = ({ navigation, route }) => {
 
                         <View className="pt-4 border-t border-gray-100">
                             <TouchableOpacity
-                                onPress={() => handleSelectDriver(selectedDriverForView.driverId)}
+                                onPress={() => handleSelectDriver(selectedDriverForView.id)}
                                 disabled={isSelecting}
                                 className="bg-green-600 py-4 rounded-xl items-center shadow-lg shadow-green-200"
                             >

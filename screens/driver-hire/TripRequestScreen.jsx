@@ -108,6 +108,7 @@ const TripRequestScreen = ({ navigation, route }) => {
 
         return {
           id: v._id,
+          vehicleType: vType, // Store human-readable type string for the backend
           name: `${v.make} ${v.model}`,
           subText: v.plateNumber || 'No Plate Info',
           icon: pricingInfo.icon || '🚗',
@@ -393,7 +394,7 @@ const TripRequestScreen = ({ navigation, route }) => {
         date: selectedDate.toISOString(), // Keep for legacy backend compatibility
         time: selectedTime, // Keep for legacy backend compatibility
         startTime: calculatedStartTime?.toISOString() || new Date().toISOString(), // Standard explicit start time
-        vehicleType: selectedVehicle,
+        vehicleType: vehicleOptions.find(v => v.id === selectedVehicle)?.vehicleType || 'sedan',
         tripType,
         passengers: passengerCount,
         specialInstructions,

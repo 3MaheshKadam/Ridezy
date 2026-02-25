@@ -78,5 +78,7 @@ export const endpoints = {
         subscription: '/drivers/subscription',
         earnings: '/drivers/earnings',
         withdraw: '/drivers/withdraw',
+        myAcceptedTrip: '/drivers/my-accepted-trip', // GET - polls for trip assigned to this driver
+        trips: '/drivers/trips', // GET - driver's trip history
     }
 };
